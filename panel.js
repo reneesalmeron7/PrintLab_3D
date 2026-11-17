@@ -201,28 +201,37 @@ if (session) {
     });
   }
 
-  function paintUsers() {
+  async function paintUsers() {
     const userTable = document.querySelector("#userTable");
     if (!userTable) return;
     const body = userTable.querySelector("tbody");
+    const response = await fetch("/api/auth/users", { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
     body.replaceChildren();
-    PrintLab.users().forEach((user) => {
+    (data.users || []).forEach((user) => {
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.textContent = user.username;
       const access = document.createElement("td");
       const role = document.createElement("select");
       role.setAttribute("aria-label", "Acceso de " + user.username);
-      ["cliente", "vendedor", "admin"].forEach((value) => {
+      ["comprador", "vendedor", "admin"].forEach((value) => {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = value;
         if (value === user.role) option.selected = true;
         role.append(option);
       });
-      role.addEventListener("change", () => {
-        PrintLab.updateUser(user.username, { role: role.value });
+      role.addEventListener("change", async () => {
+        const result = await fetch("/api/auth/users/" + user.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: role.value })
+        });
+        if (!result.ok) return;
         if (user.username === session.username && role.value !== "admin") {
+          PrintLab.saveSession({ username: user.username, role: role.value });
           location.href = PrintLab.home(role.value);
         }
       });
@@ -232,12 +241,17 @@ if (session) {
       toggle.type = "button";
       toggle.className = user.active === false ? "text-link" : "danger";
       toggle.textContent = user.active === false ? "Activar" : "Desactivar";
-      toggle.addEventListener("click", () => {
+      toggle.addEventListener("click", async () => {
         if (user.username === session.username) {
           productNote.textContent = "No puedes desactivar la cuenta con la que entraste.";
           return;
         }
-        PrintLab.updateUser(user.username, { active: user.active === false });
+        await fetch("/api/auth/users/" + user.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: user.active === false })
+        });
         paintUsers();
       });
       state.append(toggle);

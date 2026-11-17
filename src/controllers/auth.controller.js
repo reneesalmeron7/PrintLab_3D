@@ -12,8 +12,15 @@ function publicUser(row) {
     id: row.id,
     username: row.username,
     email: row.email,
-    role: row.role
+    role: row.role,
+    active: row.active === undefined ? true : Boolean(row.active)
   };
+}
+
+async function ensureActiveColumn() {
+  const [columns] = await pool.query("SHOW COLUMNS FROM users LIKE 'active'");
+  if (columns.length > 0) return;
+  await pool.query("ALTER TABLE users ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1");
 }
 
 async function seedUsers() {
@@ -71,13 +78,16 @@ async function login(req, res) {
   }
 
   const [rows] = await pool.execute(
-    "SELECT id, username, email, role, password_hash FROM users WHERE username = ? LIMIT 1",
+    "SELECT id, username, email, role, active, password_hash FROM users WHERE username = ? LIMIT 1",
     [username]
   );
   const found = rows[0];
   const matches = found ? await bcrypt.compare(password, found.password_hash) : false;
   if (!found || !matches) {
     return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
+  }
+  if (!found.active) {
+    return res.status(403).json({ error: "Esta cuenta está desactivada." });
   }
 
   const user = publicUser(found);
@@ -92,6 +102,51 @@ function logout(req, res) {
   });
 }
 
+async function listUsers(req, res) {
+  const [rows] = await pool.query(
+    "SELECT id, username, email, role, active FROM users ORDER BY id"
+  );
+  res.json({ users: rows.map(publicUser) });
+}
+
+async function updateUser(req, res) {
+  const id = Number(req.params.id);
+  const [rows] = await pool.execute(
+    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
+    [id]
+  );
+  const current = rows[0];
+  if (!current) return res.status(404).json({ error: "Usuario no encontrado." });
+
+  let role = current.role;
+  if (req.body.role !== undefined) {
+    role = String(req.body.role);
+    if (!["comprador", "vendedor", "admin"].includes(role)) {
+      return res.status(400).json({ error: "Rol no permitido." });
+    }
+  }
+
+  let active = Boolean(current.active);
+  if (req.body.active !== undefined) {
+    if (req.session.user.id === current.id) {
+      return res.status(400).json({ error: "No puedes desactivar la cuenta con la que entraste." });
+    }
+    active = Boolean(req.body.active);
+  }
+
+  await pool.execute(
+    "UPDATE users SET role = ?, active = ? WHERE id = ?",
+    [role, active ? 1 : 0, id]
+  );
+  if (req.session.user.id === current.id) req.session.user.role = role;
+
+  const [updated] = await pool.execute(
+    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
+    [id]
+  );
+  res.json({ user: publicUser(updated[0]) });
+}
+
 function me(req, res) {
   if (!req.session || !req.session.user) {
     return res.status(401).json({ error: "No hay sesión." });
@@ -99,4 +154,4 @@ function me(req, res) {
   res.json({ user: req.session.user });
 }
 
-module.exports = { seedUsers, register, login, logout, me };
+module.exports = { seedUsers, ensureActiveColumn, register, login, logout, me, listUsers, updateUser };
