@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrintLab 3D — Vendedor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="vendedor">
+  <header class="nav scrolled" id="nav">
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#0D9488"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#4F46E5"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#F6F3EC"/>
+        </svg>
+      </span>
+      <span>PrintLab <em>3D</em></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span><span></span>
+      <span class="sr">Menú</span>
+    </button>
+    <nav class="menu" id="menu">
+      <a href="index.html#catalogo">Tienda</a>
+      <span id="sessionSlot" class="session-slot"></span>
+      <a class="ghost" id="enterLink" href="acceso.html">Entrar</a>
+      <a class="solid" id="registerLink" href="acceso.html#registro">Crear cuenta</a>
+    </nav>
+  </header>
+
+  <main class="panel">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow dark">Vendedor</p>
+        <h1>Catálogo y solicitudes.</h1>
+      </div>
+      <a class="ghost" href="index.html#catalogo">Ver la tienda</a>
+    </div>
+
+    <section class="split">
+      <div class="sheet">
+        <h2>Piezas publicadas</h2>
+        <div id="productList" class="stack"></div>
+      </div>
+      <form class="sheet" id="productForm">
+        <h2 id="formTitle">Agregar pieza</h2>
+        <input type="hidden" name="id">
+        <label>Nombre
+          <input name="nombre" required maxlength="80" placeholder="Ej. clip de cable">
+        </label>
+        <label>Descripción
+          <textarea name="descripcion" required rows="3" maxlength="240" placeholder="Medidas y uso"></textarea>
+        </label>
+        <label>Precio
+          <input name="precio" type="number" min="1" step="1" required placeholder="120">
+        </label>
+        <label>Stock
+          <input name="stock" type="number" min="0" step="1" required value="1">
+        </label>
+        <label>Material
+          <select name="material" required>
+            <option value="">Elegir filamento</option>
+            <option>PLA</option>
+            <option>PETG</option>
+            <option>ABS</option>
+          </select>
+        </label>
+        <label>Tiempo de impresión
+          <input name="tiempo" required maxlength="20" placeholder="1.5 h">
+        </label>
+        <label class="file">Foto
+          <input type="file" name="foto" accept="image/*">
+          <img id="photoPreview" alt="Vista previa de la pieza" hidden>
+        </label>
+        <button class="solid full" type="submit" id="productSubmit">Agregar al catálogo</button>
+        <button class="ghost full" type="button" id="cancelEdit" hidden>Cancelar edición</button>
+        <p class="form-note" id="productNote" role="status"></p>
+      </form>
+    </section>
+
+    <section class="sheet">
+      <h2>Solicitudes</h2>
+      <div id="requestList" class="stack"></div>
+    </section>
+  </main>
+
+  <script src="store.js"></script>
+  <script src="panel.js"></script>
+  <script>
+    const menuBtn = document.querySelector("#menuBtn");
+    const menu = document.querySelector("#menu");
+    menuBtn.addEventListener("click", () => {
+      const open = menu.classList.toggle("open");
+      menuBtn.setAttribute("aria-expanded", String(open));
+    });
+  </script>
+</body>
+</html>
