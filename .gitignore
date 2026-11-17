@@ -1,0 +1,6 @@
+# .gitignore
+node_modules/
+.env
+*.log
+public/uploads/*
+!public/uploads/.gitkeep

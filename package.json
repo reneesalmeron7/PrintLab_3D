@@ -1,0 +1,27 @@
+{
+  "name": "printlab_3d",
+  "version": "1.0.0",
+  "description": "Tienda y gestor de impresiones 3d con vulnerabilidades controladas",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/reneesalmeron7/PrintLab_3D.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/reneesalmeron7/PrintLab_3D/issues"
+  },
+  "homepage": "https://github.com/reneesalmeron7/PrintLab_3D#readme",
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-session": "^1.18.1",
+    "mysql2": "^3.24.6"
+  }
+}
