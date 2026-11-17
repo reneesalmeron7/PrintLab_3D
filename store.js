@@ -109,6 +109,12 @@ const PrintLab = (function () {
     return "index.html";
   }
 
+  function saveSession(user) {
+    const current = { username: user.username, role: user.role };
+    write(SESSION, current);
+    return current;
+  }
+
   function login(username, password) {
     const found = users().find((user) => user.username === username && user.password === password);
     if (!found) return null;
@@ -120,6 +126,7 @@ const PrintLab = (function () {
 
   function logout() {
     localStorage.removeItem(SESSION);
+    return fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   }
 
   function register(username, email, password) {
@@ -244,8 +251,14 @@ const PrintLab = (function () {
     out.className = "ghost";
     out.textContent = "Salir";
     out.addEventListener("click", () => {
-      logout();
-      location.href = "index.html";
+      logout().finally(() => {
+        const here = location.pathname.endsWith("/index.html") || location.pathname.endsWith("/");
+        if (here) {
+          location.reload();
+          return;
+        }
+        location.href = "index.html";
+      });
     });
     slot.append(name, out);
   }
@@ -257,6 +270,7 @@ const PrintLab = (function () {
     invoices: invoices,
     session: session,
     home: home,
+    saveSession: saveSession,
     login: login,
     logout: logout,
     register: register,
