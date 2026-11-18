@@ -23,6 +23,39 @@ async function ensureActiveColumn() {
   await pool.query("ALTER TABLE users ADD COLUMN active TINYINT(1) NOT NULL DEFAULT 1");
 }
 
+async function ensureLoginFailuresTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS login_failures (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(255) NOT NULL,
+      ip_address VARCHAR(45) NOT NULL,
+      forwarded_for VARCHAR(255) NULL,
+      user_agent VARCHAR(255) NULL,
+      reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada') NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB
+  `);
+}
+
+function attemptContext(req) {
+  const forwarded = req.headers["x-forwarded-for"];
+  const agent = req.headers["user-agent"];
+  return {
+    ip: String(req.ip || (req.socket && req.socket.remoteAddress) || "").slice(0, 45) || "desconocida",
+    forwardedFor: typeof forwarded === "string" ? forwarded.slice(0, 255) : null,
+    userAgent: typeof agent === "string" ? agent.slice(0, 255) : null
+  };
+}
+
+async function recordLoginFailure(req, username, reason) {
+  const context = attemptContext(req);
+  await pool.execute(
+    `INSERT INTO login_failures (username, ip_address, forwarded_for, user_agent, reason)
+     VALUES (?, ?, ?, ?, ?)`,
+    [String(username).slice(0, 255), context.ip, context.forwardedFor, context.userAgent, reason]
+  );
+}
+
 async function seedUsers() {
   const [rows] = await pool.query("SELECT COUNT(*) AS total FROM users");
   if (Number(rows[0].total) > 0) return;
@@ -84,9 +117,11 @@ async function login(req, res) {
   const found = rows[0];
   const matches = found ? await bcrypt.compare(password, found.password_hash) : false;
   if (!found || !matches) {
+    await recordLoginFailure(req, username, found ? "contrasena_incorrecta" : "usuario_inexistente");
     return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
   }
   if (!found.active) {
+    await recordLoginFailure(req, username, "cuenta_desactivada");
     return res.status(403).json({ error: "Esta cuenta está desactivada." });
   }
 
@@ -99,6 +134,26 @@ function logout(req, res) {
   req.session.destroy(() => {
     res.clearCookie("printlab.sid");
     res.json({ ok: true });
+  });
+}
+
+async function listLoginFailures(req, res) {
+  const [rows] = await pool.query(
+    `SELECT id, username, ip_address, forwarded_for, user_agent, reason, created_at
+     FROM login_failures
+     ORDER BY id DESC
+     LIMIT 200`
+  );
+  res.json({
+    failures: rows.map((row) => ({
+      id: row.id,
+      username: row.username,
+      ip: row.ip_address,
+      forwardedFor: row.forwarded_for,
+      userAgent: row.user_agent,
+      reason: row.reason,
+      createdAt: row.created_at
+    }))
   });
 }
 
@@ -154,4 +209,15 @@ function me(req, res) {
   res.json({ user: req.session.user });
 }
 
-module.exports = { seedUsers, ensureActiveColumn, register, login, logout, me, listUsers, updateUser };
+module.exports = {
+  seedUsers,
+  ensureActiveColumn,
+  ensureLoginFailuresTable,
+  register,
+  login,
+  logout,
+  me,
+  listUsers,
+  updateUser,
+  listLoginFailures
+};

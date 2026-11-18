@@ -90,6 +90,15 @@ async function main() {
   }
   check("el login no limita intentos", blocked === false);
 
+  const failures = await request("/api/auth/login-failures", { cookie: admin.cookie });
+  const recorded = (failures.data.failures || []).filter((item) => {
+    return item.username === "admin" && item.reason === "contrasena_incorrecta";
+  });
+  check(
+    "el fallo queda con fecha e ip",
+    failures.status === 200 && recorded.length >= 5 && recorded[0].ip && recorded[0].createdAt
+  );
+
   if (process.exitCode) {
     console.error("Hay pruebas fallidas.");
     return;

@@ -63,6 +63,16 @@ CREATE TABLE IF NOT EXISTS custom_requests (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS login_failures (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  username VARCHAR(255) NOT NULL,
+  ip_address VARCHAR(45) NOT NULL,
+  forwarded_for VARCHAR(255) NULL,
+  user_agent VARCHAR(255) NULL,
+  reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 INSERT INTO categories (name, description) VALUES
   ('Figuras', 'Figuras decorativas y coleccionables'),
   ('Llaveros', 'Llaveros personalizados'),

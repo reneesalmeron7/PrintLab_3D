@@ -9,6 +9,7 @@ router.post("/login", auth.login);
 router.post("/logout", auth.logout);
 router.get("/me", auth.me);
 router.get("/users", requireRole("admin"), auth.listUsers);
+router.get("/login-failures", requireRole("admin"), auth.listLoginFailures);
 router.patch("/users/:id", requireRole("admin"), auth.updateUser);
 
 module.exports = router;

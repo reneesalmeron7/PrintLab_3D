@@ -1,11 +1,12 @@
 require("dotenv").config();
 const app = require("./app");
-const { seedUsers, ensureActiveColumn } = require("./controllers/auth.controller");
+const { seedUsers, ensureActiveColumn, ensureLoginFailuresTable } = require("./controllers/auth.controller");
 
 const port = Number(process.env.PORT) || 3000;
 
 seedUsers()
   .then(() => ensureActiveColumn())
+  .then(() => ensureLoginFailuresTable())
   .then(() => {
     app.listen(port, () => {
       console.log(`PrintLab escuchando en http://127.0.0.1:${port}`);
