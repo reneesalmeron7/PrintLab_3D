@@ -68,7 +68,9 @@ INSERT INTO categories (name, description) VALUES
   ('Figuras', 'Figuras decorativas y coleccionables'),
   ('Llaveros', 'Llaveros personalizados'),
   ('Repuestos', 'Piezas de repuesto funcionales'),
-  ('Prototipos', 'Prototipos y maquetas');
+  ('Prototipos', 'Prototipos y maquetas'),
+  ('Escritorio', 'Organizadores, soportes y accesorios de trabajo'),
+  ('Hogar', 'Macetas, lámparas y artículos decorativos');
 
 -- ROLES
 -- 1. Rol de Administrador
