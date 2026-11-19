@@ -10,7 +10,8 @@ async function createInvoice(req, res) {
 
   const itemsById = new Map();
   for (const item of items) {
-    const { id, qty } = item || {};
+    const id = Number(item?.id);
+    const qty = Number(item?.qty ?? item?.quantity);
     if (!Number.isInteger(id) || id < 1 || id > 2147483647
       || !Number.isInteger(qty) || qty < 1 || qty > 2147483647
       || itemsById.has(id)) {
@@ -32,7 +33,11 @@ async function createInvoice(req, res) {
       const [[product]] = await connection.execute(
         "SELECT name, price, stock FROM products WHERE id = ? FOR UPDATE", [id]
       );
-      if (!product || product.stock < qty) {
+      if (!product) {
+        await connection.rollback();
+        return res.status(404).json({ error: "Una pieza del carrito ya no existe." });
+      }
+      if (product.stock < qty) {
         await connection.rollback();
         return res.status(409).json({ error: "El stock cambió. Revisa el carrito." });
       }
@@ -43,20 +48,20 @@ async function createInvoice(req, res) {
         await connection.rollback();
         return res.status(422).json({ error: "La compra supera el monto máximo." });
       }
-      lines.push({ id, name: product.name, price: product.price, qty });
+      lines.push({ productId: id, name: product.name, price: unitCents / 100, qty });
     }
 
-    const total = (totalCents / 100).toFixed(2);
+    const total = totalCents / 100;
     const [result] = await connection.execute(
       "INSERT INTO invoices (buyer_id, total) VALUES (?, ?)", [buyer.id, total]
     );
     for (const line of lines) {
       await connection.execute(
         "INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
-        [result.insertId, line.id, line.qty, line.price]
+        [result.insertId, line.productId, line.qty, line.price]
       );
       await connection.execute(
-        "UPDATE products SET stock = stock - ? WHERE id = ?", [line.qty, line.id]
+        "UPDATE products SET stock = stock - ? WHERE id = ?", [line.qty, line.productId]
       );
     }
     const [[invoice]] = await connection.execute(
@@ -64,7 +69,7 @@ async function createInvoice(req, res) {
     );
     await connection.commit();
     return res.status(201).json({
-      invoice: { id: result.insertId, buyer: buyer.username, created: invoice.created, items: lines, total }
+      invoice: { id: result.insertId, buyer: buyer.username, createdAt: invoice.created, items: lines, total }
     });
   } catch (error) {
     await connection.rollback();
@@ -75,24 +80,29 @@ async function createInvoice(req, res) {
 }
 
 async function listInvoices(req, res) {
+  const user = req.session.user;
+  const isAdmin = user.role === "admin";
   const [rows] = await pool.execute(`
     SELECT i.id, u.username AS buyer, i.created_at AS created, i.total,
-           p.name, d.quantity AS qty, d.unit_price AS price
+           d.product_id, p.name, d.quantity AS qty, d.unit_price AS price
     FROM invoices i
     JOIN users u ON u.id = i.buyer_id
     LEFT JOIN invoice_items d ON d.invoice_id = i.id
     LEFT JOIN products p ON p.id = d.product_id
+    ${isAdmin ? "" : "WHERE i.buyer_id = ?"}
     ORDER BY i.id DESC, d.id
-  `);
+  `, isAdmin ? [] : [user.id]);
   const invoices = new Map();
   for (const row of rows) {
     if (!invoices.has(row.id)) {
       invoices.set(row.id, {
-        id: row.id, buyer: row.buyer, created: row.created, total: row.total, items: []
+        id: row.id, buyer: row.buyer, created: row.created, total: Number(row.total), items: []
       });
     }
-    if (row.qty !== null) {
-      invoices.get(row.id).items.push({ name: row.name, qty: row.qty, price: row.price });
+    if (row.product_id !== null) {
+      invoices.get(row.id).items.push({
+        id: row.product_id, name: row.name, qty: row.qty, price: Number(row.price)
+      });
     }
   }
   res.json({ invoices: [...invoices.values()] });

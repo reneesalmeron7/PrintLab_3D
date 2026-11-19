@@ -287,7 +287,7 @@ function renderCart() {
 function showInvoice(invoice) {
   document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
   document.querySelector("#invoiceDetails").textContent =
-    invoice.buyer + " · " + new Date(invoice.created).toLocaleString("es-SV");
+    invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
   const body = document.querySelector("#invoiceItems");
   body.replaceChildren();
   for (const item of invoice.items) {
@@ -326,7 +326,7 @@ checkout.addEventListener("click", async () => {
     });
     const data = await response.json();
     if (!response.ok) {
-      if (response.status === 409) await refreshCart().catch(() => {});
+      if ([404, 409].includes(response.status)) await refreshCart().catch(() => {});
       if (response.status === 401) {
         const link = document.createElement("a");
         link.href = "acceso.html";

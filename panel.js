@@ -1,6 +1,25 @@
 const page = document.body.dataset.page;
 const session = PrintLab.guard(page === "admin" ? ["admin"] : ["vendedor", "admin"]);
 
+fetch("/api/auth/me", { credentials: "include" })
+  .then((res) => (res.ok ? res.json() : null))
+  .then((data) => {
+    if (!data || !data.user) {
+      location.replace("acceso.html");
+      return;
+    }
+    const role = data.user.role;
+    if (page === "admin" && role !== "admin") {
+      location.replace("acceso.html");
+      return;
+    }
+    if (page === "vendedor" && !["vendedor", "admin"].includes(role)) {
+      location.replace("acceso.html");
+      return;
+    }
+  })
+  .catch(() => {});
+
 if (session) {
   PrintLab.mountSession();
 
@@ -210,18 +229,19 @@ if (session) {
       row.className = "row";
       const copy = document.createElement("div");
       const title = document.createElement("strong");
-      title.textContent = invoice.id + " · " + invoice.buyer;
+      title.textContent = "Factura #" + invoice.id + " · " + invoice.buyer;
       const when = document.createElement("p");
       when.textContent = typeof invoice.id === "number"
         ? new Date(invoice.created).toLocaleString("es-SV") : invoice.created;
       copy.append(title, when);
-      invoice.items.forEach((item) => {
+      (invoice.items || []).forEach((item) => {
         const line = document.createElement("p");
         line.textContent = item.qty + " × " + item.name + " · $" + (item.price * item.qty).toFixed(2);
         copy.append(line);
       });
       const total = document.createElement("p");
-      total.textContent = "Total $" + invoice.total;
+      total.style.fontWeight = "bold";
+      total.textContent = "Total $" + Number(invoice.total).toFixed(2);
       copy.append(total);
       row.append(copy);
       list.append(row);
@@ -282,8 +302,71 @@ if (session) {
         paintUsers();
       });
       state.append(toggle);
-      tr.append(name, access, state);
+
+      const actions = document.createElement("td");
+      if (user.username !== session.username) {
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "danger";
+        deleteBtn.textContent = "Eliminar";
+        deleteBtn.addEventListener("click", async () => {
+          if (confirm(`¿Eliminar la cuenta de ${user.username}?`)) {
+            const res = await fetch("/api/auth/users/" + user.id, {
+              method: "DELETE",
+              credentials: "include"
+            });
+            if (res.ok) paintUsers();
+            else alert("No se pudo eliminar el usuario.");
+          }
+        });
+        actions.append(deleteBtn);
+      }
+      tr.append(name, access, state, actions);
       body.append(tr);
+    });
+  }
+
+  const newUserForm = document.querySelector("#newUserForm");
+  const openNewUserBtn = document.querySelector("#openNewUserBtn");
+  const cancelNewUserBtn = document.querySelector("#cancelNewUserBtn");
+  const newUserNote = document.querySelector("#newUserNote");
+
+  if (openNewUserBtn && newUserForm) {
+    openNewUserBtn.addEventListener("click", () => {
+      newUserForm.hidden = false;
+      openNewUserBtn.hidden = true;
+    });
+    cancelNewUserBtn.addEventListener("click", () => {
+      newUserForm.reset();
+      newUserForm.hidden = true;
+      openNewUserBtn.hidden = false;
+      newUserNote.textContent = "";
+    });
+    newUserForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      newUserNote.textContent = "";
+      const formData = new FormData(newUserForm);
+      const body = {
+        username: String(formData.get("username")).trim(),
+        email: String(formData.get("email")).trim(),
+        password: String(formData.get("password")),
+        role: formData.get("role")
+      };
+      const res = await fetch("/api/auth/users", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        newUserNote.textContent = data.error || "Error al crear usuario.";
+        return;
+      }
+      newUserForm.reset();
+      newUserForm.hidden = true;
+      openNewUserBtn.hidden = false;
+      paintUsers();
     });
   }
 

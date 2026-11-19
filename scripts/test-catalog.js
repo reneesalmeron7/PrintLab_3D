@@ -53,8 +53,11 @@ async function checkInvoiceGuards({ product, otherProduct, seller, buyer }) {
   const items = [{ id: product.id, qty: 1 }];
   check("la compra requiere sesión", (await postInvoice(items)).status === 401);
   check("la sesión de vendedor no puede comprar", (await postInvoice(items, seller.cookie)).status === 403);
-  check("el listado de facturas requiere rol de administrador",
-    (await request("/api/invoices", { cookie: buyer.cookie })).status === 403);
+  check("el listado de facturas requiere sesión", (await request("/api/invoices")).status === 401);
+  const ownInvoices = await request("/api/invoices", { cookie: buyer.cookie });
+  check("el comprador solo puede listar sus propias facturas",
+    ownInvoices.status === 200 && Array.isArray(ownInvoices.data.invoices)
+      && ownInvoices.data.invoices.every((invoice) => invoice.buyer === buyer.data.user.username));
   check("la compra requiere al menos un producto", (await postInvoice([], buyer.cookie)).status === 400);
   check("la compra se rechaza si una pieza no tiene stock suficiente",
     (await postInvoice([...items, { id: otherProduct.id, qty: otherProduct.stock + 1 }], buyer.cookie)).status === 409);
