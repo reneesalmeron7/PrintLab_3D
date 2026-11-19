@@ -3,6 +3,7 @@ require("dotenv").config({ path: path.join(__dirname, "../.env") });
 const app = require("./app");
 const { seedUsers, ensureActiveColumn, ensureLoginFailuresTable } = require("./controllers/auth.controller");
 const { ensureImageColumn, seedCatalog } = require("./controllers/catalog.controller");
+const { ensureRequestShape, seedRequest } = require("./controllers/request.controller");
 
 const port = Number(process.env.PORT) || 3000;
 
@@ -14,6 +15,8 @@ async function initDatabase(retries = 6, delayMs = 2000) {
       await ensureLoginFailuresTable();
       await ensureImageColumn();
       await seedCatalog();
+      await ensureRequestShape();
+      await seedRequest();
       return;
     } catch (err) {
       if (attempt === retries) throw err;

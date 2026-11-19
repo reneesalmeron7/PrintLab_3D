@@ -151,8 +151,14 @@ if (session) {
     });
   }
 
-  function paintRequests() {
-    const items = PrintLab.requests();
+  let requestToken = 0;
+
+  async function paintRequests() {
+    const token = ++requestToken;
+    const response = await fetch("/api/requests", { cache: "no-store", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (token !== requestToken) return;
+    const items = data.requests || [];
     requestList.replaceChildren();
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -188,10 +194,59 @@ if (session) {
         if (state === request.estado) option.selected = true;
         select.append(option);
       });
-      select.addEventListener("change", () => {
-        PrintLab.setRequestStatus(request.id, select.value);
+      const priceWrap = document.createElement("label");
+      priceWrap.className = "quote-price";
+      priceWrap.hidden = request.estado !== "cotizada";
+      priceWrap.append("Precio");
+      const priceInput = document.createElement("input");
+      priceInput.type = "number";
+      priceInput.min = "0";
+      priceInput.step = "0.01";
+      priceInput.placeholder = "0.00";
+      priceInput.setAttribute("aria-label", "Precio de " + request.pieza);
+      if (request.precio != null) priceInput.value = String(request.precio);
+      priceWrap.append(priceInput);
+      const actions = document.createElement("div");
+      actions.className = "row-actions";
+      actions.append(select, priceWrap);
+
+      async function saveRequest(body, previous) {
+        const result = await fetch("/api/requests/" + request.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const saved = await result.json().catch(() => ({}));
+        if (!result.ok) {
+          select.value = previous;
+          priceWrap.hidden = previous !== "cotizada";
+          if (productNote) productNote.textContent = saved.error || "No se pudo cambiar el estado.";
+          return false;
+        }
+        request.estado = body.estado;
+        if (saved.precio != null) request.precio = saved.precio;
+        if (productNote) productNote.textContent = "";
+        return true;
+      }
+
+      select.addEventListener("change", async () => {
+        const previous = request.estado;
+        if (select.value === "cotizada") {
+          priceWrap.hidden = false;
+          priceInput.focus();
+          return;
+        }
+        priceWrap.hidden = true;
+        await saveRequest({ estado: select.value }, previous);
       });
-      row.append(copy, select);
+      priceInput.addEventListener("change", async () => {
+        if (select.value !== "cotizada") return;
+        const previous = request.estado;
+        const saved = await saveRequest({ estado: "cotizada", precio: priceInput.value }, previous);
+        if (saved) priceInput.value = Number(request.precio).toFixed(2);
+      });
+      row.append(copy, actions);
       requestList.append(row);
     });
   }
@@ -203,7 +258,7 @@ if (session) {
     let items = localInvoices;
     let notice = "";
     try {
-      const response = await fetch("/api/invoices", { cache: "no-store" });
+      const response = await fetch("/api/invoices", { cache: "no-store", credentials: "include" });
       if (!response.ok) throw new Error();
       const data = await response.json();
       items = [...data.invoices, ...localInvoices];

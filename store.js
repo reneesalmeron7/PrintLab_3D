@@ -255,6 +255,8 @@ const PrintLab = (function () {
     }
     if (enter) enter.hidden = true;
     if (registerLink) registerLink.hidden = true;
+    const mineLink = document.querySelector("#myRequestsLink");
+    if (mineLink) mineLink.hidden = current.role !== "comprador" && current.role !== "cliente";
     if (current.role === "vendedor" || current.role === "admin") {
       const panel = document.createElement("a");
       panel.href = home(current.role);

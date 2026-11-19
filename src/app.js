@@ -4,6 +4,7 @@ const session = require("express-session");
 const authRoutes = require("./routes/auth.routes");
 const catalogRoutes = require("./routes/catalog.routes");
 const invoicesRoutes = require("./routes/invoices.routes");
+const requestRoutes = require("./routes/request.routes");
 
 const app = express();
 const root = path.join(__dirname, "..");
@@ -26,6 +27,7 @@ app.use(session({
 app.use("/api/auth", authRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", invoicesRoutes);
+app.use("/api", requestRoutes);
 
 // Proteger vistas restringidas por rol en el servidor
 app.get("/admin.html", (req, res, next) => {
