@@ -251,7 +251,7 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
 .shot.coral { background: #fecaca; }
 .shot.slate { background: #cbd5e1; }
 .shot.leaf { background: #bbf7d0; }
-.shot svg { width: 150px; height: 112px; }
+.shot .product-art { width: 150px; height: 112px; object-fit: contain; }
 .card-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .meta { margin: 0; color: var(--teal-deep); font-weight: 800; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .card-body h3 { font-size: 1.35rem; }

@@ -16,6 +16,17 @@ const invoiceDialog = document.querySelector("#invoice");
 const money = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 const fileName = document.querySelector("#fileName");
 
+const catalogArtwork = new Map(
+  [...grid.querySelectorAll(".card")].map((card) => {
+    const shot = card.querySelector(".shot");
+    return [card.dataset.name, {
+      material: card.dataset.material,
+      source: shot.querySelector(".product-art").getAttribute("src"),
+      classes: shot.className
+    }];
+  })
+);
+
 const cart = [];
 let catalog = [];
 let filter = "todos";
@@ -76,19 +87,21 @@ function showToast(message) {
   showToast.timer = setTimeout(() => toast.classList.remove("show"), 2200);
 }
 
-function applyImage(shot, image) {
-  let img = shot.querySelector("img.photo");
-  if (!image) {
-    if (img) img.remove();
+function applyImage(shot, photo, artwork) {
+  const source = photo || artwork?.source;
+  let img = shot.querySelector("img");
+  if (!source) {
+    img?.remove();
     return;
   }
+
   if (!img) {
     img = document.createElement("img");
-    img.className = "photo";
     img.alt = "";
     shot.prepend(img);
   }
-  img.src = image;
+  img.className = photo ? "photo" : "product-art";
+  if (img.getAttribute("src") !== source) img.src = source;
 }
 
 function updateCard(card, product) {
@@ -99,10 +112,12 @@ function updateCard(card, product) {
   card.dataset.stock = String(product.stock);
   const tone = product.material === "ABS" ? "slate" : product.material === "PETG" ? "indigo" : "teal";
   const shot = card.querySelector(".shot");
-  shot.className = "shot " + tone;
+  const original = catalogArtwork.get(product.name);
+  const artwork = original?.material === product.material ? original : undefined;
+  shot.className = artwork?.classes || ("shot " + tone);
   const badge = shot.querySelector("span");
   if (badge) badge.textContent = product.material;
-  applyImage(shot, product.image);
+  applyImage(shot, product.image, artwork);
   card.querySelector(".meta").textContent = product.category + " · " + product.time;
   card.querySelector("h3").textContent = product.name;
   card.querySelector(".card-body > p:not(.meta)").textContent = product.description;
@@ -112,29 +127,18 @@ function updateCard(card, product) {
 function cardFrom(product) {
   const article = document.createElement("article");
   article.className = "card";
-  article.dataset.id = product.id;
-  article.dataset.material = product.material;
-  article.dataset.name = product.name;
-  article.dataset.price = String(product.price);
-  article.dataset.stock = String(product.stock);
-  const tone = product.material === "ABS" ? "slate" : product.material === "PETG" ? "indigo" : "teal";
   const shot = document.createElement("div");
-  shot.className = "shot " + tone;
+  shot.className = "shot";
   const badge = document.createElement("span");
-  badge.textContent = product.material;
   shot.append(badge);
   const body = document.createElement("div");
   body.className = "card-body";
   const meta = document.createElement("p");
   meta.className = "meta";
-  meta.textContent = product.category + " · " + product.time;
   const title = document.createElement("h3");
-  title.textContent = product.name;
   const text = document.createElement("p");
-  text.textContent = product.description;
   const footer = document.createElement("footer");
   const price = document.createElement("strong");
-  price.textContent = money.format(product.price);
   const add = document.createElement("button");
   add.type = "button";
   add.className = "add";
@@ -142,7 +146,7 @@ function cardFrom(product) {
   footer.append(price, add);
   body.append(meta, title, text, footer);
   article.append(shot, body);
-  applyImage(shot, product.image);
+  updateCard(article, product);
   return article;
 }
 
