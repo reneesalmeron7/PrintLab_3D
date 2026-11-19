@@ -5,6 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
+    "seed": "node scripts/seed-data.js",
     "test": "node scripts/test-auth.js && node scripts/test-catalog.js && node scripts/test-requests.js"
   },
   "repository": {

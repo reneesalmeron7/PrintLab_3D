@@ -3,6 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const authRoutes = require("./routes/auth.routes");
 const catalogRoutes = require("./routes/catalog.routes");
+const invoicesRoutes = require("./routes/invoices.routes");
 const requestRoutes = require("./routes/request.routes");
 
 const app = express();
@@ -25,14 +26,34 @@ app.use(session({
 
 app.use("/api/auth", authRoutes);
 app.use("/api", catalogRoutes);
+app.use("/api", invoicesRoutes);
 app.use("/api", requestRoutes);
+
+// Proteger vistas restringidas por rol en el servidor
+app.get("/admin.html", (req, res, next) => {
+  if (!req.session || !req.session.user || req.session.user.role !== "admin") {
+    return res.redirect("/acceso.html");
+  }
+  next();
+});
+
+app.get("/vendedor.html", (req, res, next) => {
+  if (!req.session || !req.session.user || !["vendedor", "admin"].includes(req.session.user.role)) {
+    return res.redirect("/acceso.html");
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const blocked = req.path.startsWith("/src")
     || req.path.startsWith("/sql")
     || req.path.startsWith("/scripts")
     || req.path.startsWith("/node_modules")
-    || req.path.includes(".env");
+    || req.path.includes(".env")
+    || req.path.endsWith(".yml")
+    || req.path.endsWith(".yaml")
+    || req.path.endsWith(".json")
+    || req.path.endsWith(".md");
   if (blocked) return res.status(404).end();
   next();
 });

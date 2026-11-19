@@ -313,6 +313,18 @@
     <button class="solid full" type="button" id="checkout">Generar factura</button>
   </div>
 
+  <div class="cart-panel" id="invoiceModal" hidden style="max-height:85vh;overflow-y:auto;z-index:200;">
+    <header>
+      <strong id="invoiceModalTitle">Factura generada</strong>
+      <button type="button" id="closeInvoiceModal">Cerrar</button>
+    </header>
+    <div id="invoiceModalBody" style="padding:1rem 0;line-height:1.6;"></div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;">
+      <button class="solid full" type="button" onclick="window.print()">Imprimir</button>
+      <button class="ghost full" type="button" id="closeInvoiceModalBtn">Aceptar</button>
+    </div>
+  </div>
+
   <script src="store.js"></script>
   <script src="app.js"></script>
 </body>
