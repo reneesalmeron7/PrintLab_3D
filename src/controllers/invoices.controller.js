@@ -1,149 +1,111 @@
 const pool = require("../config/db");
 
+const MAX_TOTAL_CENTS = 9999999999;
+
 async function createInvoice(req, res) {
-  const items = req.body.items;
+  const items = req.body?.items;
   if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: "El carrito está vacío." });
+    return res.status(400).json({ error: "Agrega al menos un producto." });
   }
 
-  const conn = await pool.getConnection();
+  const itemsById = new Map();
+  for (const item of items) {
+    const id = Number(item?.id);
+    const qty = Number(item?.qty ?? item?.quantity);
+    if (!Number.isInteger(id) || id < 1 || id > 2147483647
+      || !Number.isInteger(qty) || qty < 1 || qty > 2147483647
+      || itemsById.has(id)) {
+      return res.status(400).json({ error: "Revisa los productos y cantidades." });
+    }
+    itemsById.set(id, qty);
+  }
+
+  const buyer = req.session.user;
+  const connection = await pool.getConnection();
   try {
-    await conn.beginTransaction();
+    await connection.beginTransaction();
+    const lines = [];
+    let totalCents = 0;
 
-    let total = 0;
-    const validatedItems = [];
-
-    for (const item of items) {
-      const productId = Number(item.id);
-      const qty = Number(item.qty || item.quantity);
-
-      if (!productId || !Number.isInteger(qty) || qty < 1) {
-        await conn.rollback();
-        conn.release();
-        return res.status(400).json({ error: "Datos de producto no válidos." });
-      }
-
-      const [rows] = await conn.execute(
-        "SELECT id, name, price, stock FROM products WHERE id = ? FOR UPDATE",
-        [productId]
+    // Lock products in the same order for every purchase.
+    for (const id of [...itemsById.keys()].sort((a, b) => a - b)) {
+      const qty = itemsById.get(id);
+      const [[product]] = await connection.execute(
+        "SELECT name, price, stock FROM products WHERE id = ? FOR UPDATE", [id]
       );
-      const product = rows[0];
-
       if (!product) {
-        await conn.rollback();
-        conn.release();
-        return res.status(404).json({ error: `La pieza #${productId} no existe.` });
+        await connection.rollback();
+        return res.status(404).json({ error: "Una pieza del carrito ya no existe." });
       }
-
       if (product.stock < qty) {
-        await conn.rollback();
-        conn.release();
-        return res.status(409).json({
-          error: `Stock insuficiente para "${product.name}". Disponible: ${product.stock}, solicitado: ${qty}.`
-        });
+        await connection.rollback();
+        return res.status(409).json({ error: "El stock cambió. Revisa el carrito." });
       }
 
-      const unitPrice = Number(product.price);
-      total += unitPrice * qty;
-      validatedItems.push({
-        productId: product.id,
-        name: product.name,
-        price: unitPrice,
-        qty
-      });
+      const unitCents = Math.round(Number(product.price) * 100);
+      totalCents += unitCents * qty;
+      if (totalCents > MAX_TOTAL_CENTS) {
+        await connection.rollback();
+        return res.status(422).json({ error: "La compra supera el monto máximo." });
+      }
+      lines.push({ productId: id, name: product.name, price: unitCents / 100, qty });
     }
 
-    const roundedTotal = Math.round(total * 100) / 100;
-    const [invResult] = await conn.execute(
-      "INSERT INTO invoices (buyer_id, total) VALUES (?, ?)",
-      [req.session.user.id, roundedTotal]
+    const total = totalCents / 100;
+    const [result] = await connection.execute(
+      "INSERT INTO invoices (buyer_id, total) VALUES (?, ?)", [buyer.id, total]
     );
-    const invoiceId = invResult.insertId;
-
-    for (const line of validatedItems) {
-      await conn.execute(
-        "UPDATE products SET stock = stock - ? WHERE id = ?",
-        [line.qty, line.productId]
-      );
-      await conn.execute(
+    for (const line of lines) {
+      await connection.execute(
         "INSERT INTO invoice_items (invoice_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
-        [invoiceId, line.productId, line.qty, line.price]
+        [result.insertId, line.productId, line.qty, line.price]
+      );
+      await connection.execute(
+        "UPDATE products SET stock = stock - ? WHERE id = ?", [line.qty, line.productId]
       );
     }
-
-    await conn.commit();
-    conn.release();
-
-    res.status(201).json({
-      invoice: {
-        id: invoiceId,
-        buyer: req.session.user.username,
-        total: roundedTotal,
-        items: validatedItems,
-        createdAt: new Date()
-      }
+    const [[invoice]] = await connection.execute(
+      "SELECT created_at AS created FROM invoices WHERE id = ?", [result.insertId]
+    );
+    await connection.commit();
+    return res.status(201).json({
+      invoice: { id: result.insertId, buyer: buyer.username, createdAt: invoice.created, items: lines, total }
     });
-  } catch (err) {
-    try {
-      await conn.rollback();
-    } catch (_) {}
-    conn.release();
-    console.error("Error al generar factura:", err);
-    res.status(500).json({ error: "No se pudo procesar la compra." });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
 }
 
 async function listInvoices(req, res) {
-  try {
-    const isAdmin = req.session.user.role === "admin";
-    let query = `
-      SELECT i.id, i.buyer_id, u.username AS buyer, i.total, i.created_at,
-             ii.product_id, p.name AS product_name, ii.quantity, ii.unit_price
-      FROM invoices i
-      JOIN users u ON u.id = i.buyer_id
-      LEFT JOIN invoice_items ii ON ii.invoice_id = i.id
-      LEFT JOIN products p ON p.id = ii.product_id
-    `;
-    const params = [];
-
-    if (!isAdmin) {
-      query += " WHERE i.buyer_id = ?";
-      params.push(req.session.user.id);
+  const user = req.session.user;
+  const isAdmin = user.role === "admin";
+  const [rows] = await pool.execute(`
+    SELECT i.id, u.username AS buyer, i.created_at AS created, i.total,
+           d.product_id, p.name, d.quantity AS qty, d.unit_price AS price
+    FROM invoices i
+    JOIN users u ON u.id = i.buyer_id
+    LEFT JOIN invoice_items d ON d.invoice_id = i.id
+    LEFT JOIN products p ON p.id = d.product_id
+    ${isAdmin ? "" : "WHERE i.buyer_id = ?"}
+    ORDER BY i.id DESC, d.id
+  `, isAdmin ? [] : [user.id]);
+  const invoices = new Map();
+  for (const row of rows) {
+    if (!invoices.has(row.id)) {
+      invoices.set(row.id, {
+        id: row.id, buyer: row.buyer, created: row.created, total: Number(row.total), items: []
+      });
     }
-
-    query += " ORDER BY i.id DESC";
-
-    const [rows] = await pool.execute(query, params);
-
-    const invoicesMap = new Map();
-    for (const row of rows) {
-      if (!invoicesMap.has(row.id)) {
-        invoicesMap.set(row.id, {
-          id: row.id,
-          buyer: row.buyer,
-          total: Number(row.total),
-          created: row.created_at,
-          items: []
-        });
-      }
-      if (row.product_id) {
-        invoicesMap.get(row.id).items.push({
-          id: row.product_id,
-          name: row.product_name,
-          price: Number(row.unit_price),
-          qty: row.quantity
-        });
-      }
+    if (row.product_id !== null) {
+      invoices.get(row.id).items.push({
+        id: row.product_id, name: row.name, qty: row.qty, price: Number(row.price)
+      });
     }
-
-    res.json({ invoices: Array.from(invoicesMap.values()) });
-  } catch (err) {
-    console.error("Error al listar facturas:", err);
-    res.status(500).json({ error: "Error al obtener facturas." });
   }
+  res.json({ invoices: [...invoices.values()] });
 }
 
-module.exports = {
-  createInvoice,
-  listInvoices
-};
+module.exports = { createInvoice, listInvoices };

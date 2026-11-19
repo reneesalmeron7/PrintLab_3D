@@ -199,11 +199,25 @@ if (session) {
   async function paintInvoices() {
     const list = document.querySelector("#invoiceList");
     if (!list) return;
-    const response = await fetch("/api/invoices", { credentials: "include" });
-    const data = await response.json().catch(() => ({}));
-    const items = data.invoices || [];
+    const localInvoices = PrintLab.invoices();
+    let items = localInvoices;
+    let notice = "";
+    try {
+      const response = await fetch("/api/invoices", { cache: "no-store" });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      items = [...data.invoices, ...localInvoices];
+    } catch {
+      notice = "No se pudieron cargar las facturas del servidor.";
+    }
     list.replaceChildren();
-    if (items.length === 0) {
+    if (notice) {
+      const warning = document.createElement("p");
+      warning.className = "form-note";
+      warning.textContent = notice;
+      list.append(warning);
+    }
+    if (items.length === 0 && !notice) {
       const empty = document.createElement("p");
       empty.className = "form-note";
       empty.textContent = "Todavía no hay facturas.";
@@ -217,11 +231,12 @@ if (session) {
       const title = document.createElement("strong");
       title.textContent = "Factura #" + invoice.id + " · " + invoice.buyer;
       const when = document.createElement("p");
-      when.textContent = new Date(invoice.created).toLocaleString("es-MX");
+      when.textContent = typeof invoice.id === "number"
+        ? new Date(invoice.created).toLocaleString("es-SV") : invoice.created;
       copy.append(title, when);
       (invoice.items || []).forEach((item) => {
         const line = document.createElement("p");
-        line.textContent = item.qty + " × " + item.name + " · $" + (Number(item.price) * item.qty).toFixed(2);
+        line.textContent = item.qty + " × " + item.name + " · $" + (item.price * item.qty).toFixed(2);
         copy.append(line);
       });
       const total = document.createElement("p");

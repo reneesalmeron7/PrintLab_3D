@@ -15,7 +15,7 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; scroll-padding-top: 84px; }
 body {
   margin: 0;
   background:
@@ -29,6 +29,11 @@ body {
 img, svg { display: block; max-width: 100%; }
 a { color: inherit; }
 button, input, select, textarea { font: inherit; color: inherit; }
+:is(a, button, input, select, textarea, .table-scroll):focus-visible {
+  outline: 2px solid var(--indigo);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--card);
+}
 h1, h2, h3 { font-family: var(--display); line-height: 1.05; letter-spacing: -0.03em; margin: 0; }
 .sr, .skip {
   position: absolute;
@@ -62,6 +67,7 @@ h1, h2, h3 { font-family: var(--display); line-height: 1.05; letter-spacing: -0.
 .brand em { font-style: normal; color: var(--indigo); }
 .menu { display: flex; align-items: center; gap: 18px; }
 .menu a { text-decoration: none; font-weight: 650; font-size: 0.95rem; }
+.menu a:hover { text-decoration: underline; }
 .menu-btn {
   display: none;
   width: 44px;
@@ -71,7 +77,7 @@ h1, h2, h3 { font-family: var(--display); line-height: 1.05; letter-spacing: -0.
   border-radius: 12px;
   padding: 10px;
 }
-.menu-btn span {
+.menu-btn span:not(.sr) {
   display: block;
   height: 2px;
   margin: 5px 0;
@@ -115,7 +121,7 @@ h1, h2, h3 { font-family: var(--display); line-height: 1.05; letter-spacing: -0.
 .split { display: grid; grid-template-columns: 1.15fr .85fr; gap: 18px; align-items: start; }
 .stack { display: grid; }
 .row { padding: 14px 0; border-bottom: 1px solid var(--line); align-items: start; }
-.row-copy { display: flex; gap: 12px; align-items: center; }
+.row-copy { display: flex; gap: 12px; align-items: center; min-width: 0; overflow-wrap: anywhere; }
 .row-actions { display: flex; gap: 12px; align-items: center; flex: none; }
 .thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; }
 #photoPreview { width: 100%; max-height: 180px; object-fit: cover; border-radius: 12px; }
@@ -125,6 +131,7 @@ h1, h2, h3 { font-family: var(--display); line-height: 1.05; letter-spacing: -0.
 .row p { margin: 4px 0 0; color: var(--ink-soft); }
 .danger { border: 0; background: transparent; color: #9f1239; font-weight: 800; cursor: pointer; padding: 8px 0; }
 .cart-panel .solid { margin-top: 10px; }
+.table-scroll { overflow-x: auto; }
 .accounts { width: 100%; border-collapse: collapse; }
 .accounts th, .accounts td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); }
 
@@ -244,7 +251,7 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
 .shot.coral { background: #fecaca; }
 .shot.slate { background: #cbd5e1; }
 .shot.leaf { background: #bbf7d0; }
-.shot svg { width: 150px; height: 112px; }
+.shot .product-art { width: 150px; height: 112px; object-fit: contain; }
 .card-body { padding: 16px 16px 18px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .meta { margin: 0; color: var(--teal-deep); font-weight: 800; font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; }
 .card-body h3 { font-size: 1.35rem; }
@@ -254,6 +261,7 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
 .add { background: var(--ink); color: white; border: 0; padding: 8px 14px; font-weight: 700; }
 .add:hover { background: var(--teal-deep); }
 .empty { text-align: center; color: var(--ink-soft); }
+.catalog-retry { display: flex; margin-inline: auto; }
 
 .mat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .mat-grid article {
@@ -300,6 +308,7 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
 .custom strong { color: var(--ink); }
 
 .sheet {
+  min-width: 0;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 24px;
@@ -308,6 +317,7 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
   display: grid;
   gap: 12px;
 }
+#formFields { display: grid; gap: 12px; }
 .sheet label, .file { display: grid; gap: 6px; font-weight: 700; font-size: 0.92rem; }
 input, select, textarea {
   width: 100%;
@@ -334,7 +344,6 @@ textarea { resize: vertical; }
 .auth h1 { font-size: clamp(2.2rem, 4vw, 3.4rem); max-width: none; margin-bottom: 0; }
 .auth-card { display: grid; gap: 16px; }
 .auth-card form { display: grid; gap: 12px; }
-.auth-card form[hidden] { display: none; }
 .switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -435,7 +444,7 @@ textarea { resize: vertical; }
 .total { font-weight: 800; border-top: 1px solid var(--line); padding-top: 8px; }
 
 @media (max-width: 1100px) {
-  .hero, .custom, .auth, .grid, .mat-grid, .split { grid-template-columns: 1fr; }
+  .hero, .custom, .grid, .mat-grid, .split { grid-template-columns: 1fr; }
   .panel-head { align-items: flex-start; flex-wrap: wrap; }
   .hero-logo { min-height: 280px; }
   .featured-mat { transform: none; }
@@ -480,12 +489,52 @@ textarea { resize: vertical; }
   .section-head, .foot { flex-direction: column; align-items: flex-start; }
 }
 
+@media (max-width: 540px) {
+  .row, .row-actions, .card-body footer { flex-wrap: wrap; }
+  .row, .card-body footer { gap: 8px; }
+  .toast { top: 80px; bottom: auto; width: max-content; max-width: calc(100vw - 32px); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
+  .toast { transition: none; }
 }
 
 .row select,
 .accounts select {
   width: auto;
   min-width: 8.5rem;
+}
+
+.cart-panel {
+  max-height: calc(100dvh - 90px);
+  overflow: auto;
+}
+
+.cart-panel li { flex-wrap: wrap; align-items: center; }
+.cart-panel li > span { flex: 1; }
+.cart-quantity { display: flex; gap: 6px; }
+.cart-quantity button { padding: 4px 10px; }
+#checkout:disabled, .cart-quantity button:disabled { opacity: .55; cursor: default; }
+
+.invoice {
+  width: min(560px, calc(100% - 32px));
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: clamp(14px, 4vw, 28px);
+  color: var(--ink);
+  background: var(--card);
+}
+
+.invoice::backdrop { background: #0f172a99; }
+.invoice table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: .9rem; }
+.invoice th, .invoice td { padding: 8px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+.invoice th:first-child, .invoice td:first-child { text-align: left; overflow-wrap: anywhere; }
+.invoice-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+@media print {
+  body:has(.invoice[open]) > :not(.invoice),
+  .invoice-actions { display: none !important; }
+  .invoice[open] { position: static; width: 100%; max-width: none; max-height: none; border: 0; }
+  .invoice::backdrop { display: none; }
 }
