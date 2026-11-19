@@ -351,19 +351,45 @@ checkout.addEventListener("click", async () => {
   }
 });
 
+const authRequestDialog = document.querySelector("#authRequestDialog");
+const closeAuthDialog = document.querySelector("#closeAuthDialog");
+if (closeAuthDialog) closeAuthDialog.addEventListener("click", () => authRequestDialog.close());
+
+// Bloquear cualquier campo del formulario si el usuario no tiene sesión
+const requestFormFields = document.querySelectorAll("#requestForm input, #requestForm textarea, #requestForm select, #requestForm button[type='submit']");
+requestFormFields.forEach(field => {
+  field.addEventListener("focus", interceptIfGuest, true);
+  field.addEventListener("mousedown", interceptIfGuest, true);
+});
+
+function interceptIfGuest(event) {
+  if (!PrintLab.session()) {
+    event.preventDefault();
+    event.stopPropagation();
+    authRequestDialog.showModal();
+  }
+}
+
 document.querySelector("#requestForm").addEventListener("submit", (event) => {
   event.preventDefault();
+
+  // Verificar sesión activa con el servidor antes de aceptar la solicitud
+  const current = PrintLab.session();
+  if (!current) {
+    authRequestDialog.showModal();
+    return;
+  }
+
   const data = new FormData(event.currentTarget);
   const pieza = data.get("pieza");
   const material = data.get("material");
-  const current = PrintLab.session();
   const archivo = data.get("referencia");
   PrintLab.addRequest({
     id: "s" + Date.now(),
     pieza: String(pieza).trim(),
     material: material,
     descripcion: String(data.get("descripcion")).trim(),
-    usuario: current ? current.username : "invitado",
+    usuario: current.username,
     archivo: archivo && archivo.name ? archivo.name : "",
     estado: "pendiente"
   });

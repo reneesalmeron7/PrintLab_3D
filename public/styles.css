@@ -379,11 +379,19 @@ textarea { resize: vertical; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 24px;
+  padding: 36px 6vw;
   background: var(--ink);
   color: white;
 }
-.foot p { margin: 6px 0 0; color: rgba(255,255,255,.7); }
+.foot strong { font-family: var(--display); font-size: 1.1rem; }
+.foot p { margin: 6px 0 0; font-size: 0.9rem; color: rgba(255,255,255,.65); }
+.foot nav { display: flex; gap: 20px; }
+.foot nav a { color: rgba(255,255,255,.75); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+.foot nav a:hover { color: white; text-decoration: underline; }
+.foot-copy { display: flex; flex-direction: column; gap: 2px; }
+.foot-bottom { margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.12); font-size: 0.8rem; color: rgba(255,255,255,.45); text-align: center; }
+.foot-wrap { display: flex; flex-direction: column; padding: 36px 6vw 24px; background: var(--ink); color: white; gap: 32px; }
 
 .toast {
   position: fixed;
@@ -487,6 +495,7 @@ textarea { resize: vertical; }
     padding: 10px 14px 2px;
   }
   .section-head, .foot { flex-direction: column; align-items: flex-start; }
+  .foot nav { flex-wrap: wrap; gap: 12px; }
 }
 
 @media (max-width: 540px) {

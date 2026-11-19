@@ -56,6 +56,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// Servir carpeta public/ (JS, CSS, assets del frontend)
+app.use("/public", express.static(path.join(root, "public"), { dotfiles: "ignore" }));
+// Servir raíz del proyecto (HTML pages)
 app.use(express.static(root, { dotfiles: "ignore", index: "index.html" }));
 
 app.use((err, req, res, next) => {
