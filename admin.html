@@ -95,10 +95,41 @@
     </section>
 
     <section class="sheet">
-      <h2>Cuentas</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2>Cuentas</h2>
+        <button class="solid" type="button" id="openNewUserBtn">+ Nuevo usuario</button>
+      </div>
+
+      <form id="newUserForm" class="sheet" hidden style="margin-bottom:1.5rem;background:#f8f9fa;padding:1.25rem;border-radius:8px;">
+        <h3 style="margin-top:0;">Crear nuevo usuario</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:0.75rem;margin:1rem 0;">
+          <label>Usuario
+            <input name="username" required maxlength="50" placeholder="Ej. nuevo_usuario">
+          </label>
+          <label>Correo
+            <input name="email" type="email" required maxlength="100" placeholder="usuario@printlab.local">
+          </label>
+          <label>Contraseña
+            <input name="password" type="password" required minlength="4" placeholder="••••••••">
+          </label>
+          <label>Rol
+            <select name="role">
+              <option value="comprador">Comprador</option>
+              <option value="vendedor">Vendedor</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex;gap:0.5rem;">
+          <button class="solid" type="submit">Guardar usuario</button>
+          <button class="ghost" type="button" id="cancelNewUserBtn">Cancelar</button>
+        </div>
+        <p class="form-note" id="newUserNote" role="status" style="margin-top:0.5rem;"></p>
+      </form>
+
       <table class="accounts" id="userTable">
         <thead>
-          <tr><th>Usuario</th><th>Acceso</th><th>Estado</th></tr>
+          <tr><th>Usuario</th><th>Acceso</th><th>Estado</th><th>Acciones</th></tr>
         </thead>
         <tbody></tbody>
       </table>

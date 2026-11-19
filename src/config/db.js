@@ -1,5 +1,6 @@
+const path = require('path');
 const mysql = require('mysql2');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
@@ -9,7 +10,9 @@ const pool = mysql.createPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 10000
 });
 
 pool.getConnection((err, conn) => {
