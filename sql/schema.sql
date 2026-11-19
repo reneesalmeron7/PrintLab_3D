@@ -1,3 +1,4 @@
+--TABLAS
 CREATE DATABASE IF NOT EXISTS printlab3d
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
@@ -68,3 +69,26 @@ INSERT INTO categories (name, description) VALUES
   ('Llaveros', 'Llaveros personalizados'),
   ('Repuestos', 'Piezas de repuesto funcionales'),
   ('Prototipos', 'Prototipos y maquetas');
+
+-- ROLES
+-- 1. Rol de Administrador
+CREATE ROLE IF NOT EXISTS 'rol_admin';
+GRANT ALL PRIVILEGES ON printlab3d.* TO 'rol_admin';
+CREATE USER IF NOT EXISTS 'admin_db'@'%' IDENTIFIED BY 'Admin_S3gur0_2026!';
+GRANT 'rol_admin' TO 'admin_db'@'%';
+SET DEFAULT ROLE 'rol_admin' FOR 'admin_db'@'%';
+
+-- 2. Rol de Auditor
+CREATE ROLE IF NOT EXISTS 'rol_auditor';
+GRANT SELECT ON printlab3d.* TO 'rol_auditor';
+CREATE USER IF NOT EXISTS 'auditor_db'@'%' IDENTIFIED BY 'Auditor_S3gur0_2026!';
+GRANT 'rol_auditor' TO 'auditor_db'@'%';
+SET DEFAULT ROLE 'rol_auditor' FOR 'auditor_db'@'%';
+
+-- 3. Rol de Backend
+CREATE ROLE IF NOT EXISTS 'rol_app';
+GRANT SELECT, INSERT, UPDATE, DELETE ON printlab3d.* TO 'rol_app';
+GRANT 'rol_app' TO 'printlab_user'@'%';
+SET DEFAULT ROLE 'rol_app' FOR 'printlab_user'@'%';
+
+FLUSH PRIVILEGES;
