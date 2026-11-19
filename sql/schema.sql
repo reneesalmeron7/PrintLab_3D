@@ -91,4 +91,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON printlab3d.* TO 'rol_app';
 GRANT 'rol_app' TO 'printlab_user'@'%';
 SET DEFAULT ROLE 'rol_app' FOR 'printlab_user'@'%';
 
+-- 4. Deshabilitar usuario root
+DROP USER IF EXISTS 'root'@'%';
+ALTER USER IF EXISTS 'root'@'localhost' ACCOUNT LOCK;
+
 FLUSH PRIVILEGES;
