@@ -12,6 +12,12 @@ const cartPanel = document.querySelector("#cartPanel");
 const cartBtn = document.querySelector("#cartBtn");
 const checkout = document.querySelector("#checkout");
 const cartNotice = document.querySelector("#cartNotice");
+const payment = document.querySelector("#payment");
+const paymentForm = document.querySelector("#paymentForm");
+const paymentMethods = document.querySelector("#paymentMethods");
+const paymentNotice = document.querySelector("#paymentNotice");
+const confirmPayment = document.querySelector("#confirmPayment");
+const backToCart = document.querySelector("#backToCart");
 const invoiceDialog = document.querySelector("#invoice");
 const money = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 const fileName = document.querySelector("#fileName");
@@ -28,6 +34,8 @@ const catalogArtwork = new Map(
 );
 
 const cart = [];
+const cartBeforeLogin = "pl-cart-before-login";
+let paying = false;
 let catalog = [];
 let filter = "todos";
 
@@ -54,6 +62,7 @@ async function loadCatalog() {
   const data = await response.json();
   if (token !== catalogToken) return;
   catalog = (data.products || []).map(asProduct);
+  if (grid.hidden) restoreCartAfterLogin();
   grid.hidden = false;
   catalogMessage.hidden = true;
   retryCatalog.hidden = true;
@@ -195,7 +204,7 @@ chips.forEach((chip) => {
 
 grid.addEventListener("click", (event) => {
   const button = event.target.closest(".add");
-  if (!button || cartPanel.getAttribute("aria-busy") === "true") return;
+  if (!button) return;
   const card = button.closest(".card");
   const product = catalog.find((item) => item.id === card.dataset.id);
   if (!product || product.stock < 1) {
@@ -255,9 +264,7 @@ function renderCart() {
   const focused = document.activeElement;
   cartCount.textContent = String(cart.reduce((sum, item) => sum + item.qty, 0));
   cartList.replaceChildren();
-  let total = 0;
   for (const item of cart) {
-    total += item.price * item.qty;
     const li = document.createElement("li");
     const name = document.createElement("span");
     name.textContent = item.qty + " × " + item.name;
@@ -275,7 +282,7 @@ function renderCart() {
     li.textContent = "Todavía no hay piezas.";
     cartList.append(li);
   }
-  cartTotal.textContent = money.format(total);
+  cartTotal.textContent = money.format(cartAmount());
   checkout.disabled = cart.length === 0;
   if (focused.closest(".cart-quantity")) {
     const corresponding = [...cartList.querySelectorAll("button")]
@@ -284,10 +291,35 @@ function renderCart() {
   }
 }
 
-function showInvoice(invoice) {
+function cartAmount() {
+  return cart.reduce((sum, { price, qty }) => sum + price * qty, 0);
+}
+
+function restoreCartAfterLogin() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(cartBeforeLogin) || "[]");
+    sessionStorage.removeItem(cartBeforeLogin);
+    for (const item of saved) {
+      const product = catalog.find(({ id }) => id === item.id);
+      if (!product || product.stock < 1 || !Number.isInteger(item.qty) || item.qty < 1) continue;
+      cart.push({
+        id: product.id, name: product.name, price: product.price, qty: Math.min(item.qty, product.stock)
+      });
+    }
+    if (cart.length) {
+      renderCart();
+      setCartOpen(true);
+    }
+  } catch {
+    // The cart still works when browser storage is unavailable.
+  }
+}
+
+function showInvoice(invoice, method) {
   document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
   document.querySelector("#invoiceDetails").textContent =
     invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
+  document.querySelector("#invoicePayment").textContent = "Pago de prueba con " + method + ".";
   const body = document.querySelector("#invoiceItems");
   body.replaceChildren();
   for (const item of invoice.items) {
@@ -304,21 +336,86 @@ document.querySelector("#printInvoice").addEventListener("click", () => window.p
 
 async function refreshCart() {
   await loadCatalog();
+  let changed = false;
   for (const item of cart.slice()) {
     const product = catalog.find((entry) => entry.id === item.id);
-    if (!product || product.stock === 0) cart.splice(cart.indexOf(item), 1);
-    else Object.assign(item, { qty: Math.min(item.qty, product.stock), name: product.name, price: product.price });
+    if (!product || product.stock < 1) {
+      cart.splice(cart.indexOf(item), 1);
+      changed = true;
+      continue;
+    }
+
+    const qty = Math.min(item.qty, product.stock);
+    if (qty !== item.qty || product.price !== item.price || product.name !== item.name) {
+      Object.assign(item, { qty, name: product.name, price: product.price });
+      changed = true;
+    }
   }
+  return changed;
 }
 
-checkout.addEventListener("click", async () => {
-  if (cart.length === 0 || checkout.disabled) return;
-  checkout.disabled = true;
-  cartList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-  cartPanel.setAttribute("aria-busy", "true");
-  cartNotice.textContent = "Generando factura…";
+function renderPaymentSummary() {
+  const list = document.querySelector("#paymentItems");
+  list.replaceChildren();
+  for (const { name, qty, price } of cart) {
+    const row = document.createElement("li");
+    const item = document.createElement("span");
+    const subtotal = document.createElement("strong");
+    item.textContent = qty + " × " + name;
+    subtotal.textContent = money.format(price * qty);
+    row.append(item, subtotal);
+    list.append(row);
+  }
+  document.querySelector("#paymentTotal").textContent = money.format(cartAmount());
+  confirmPayment.disabled = paying || cart.length === 0;
+}
+
+function offerLogin() {
+  const link = document.createElement("a");
+  link.href = "acceso.html";
+  link.textContent = "Inicia sesión como comprador para continuar.";
+  link.addEventListener("click", () => {
+    try {
+      sessionStorage.setItem(cartBeforeLogin, JSON.stringify(cart.map(({ id, qty }) => ({ id, qty }))));
+    } catch {
+      // The login link remains usable without browser storage.
+    }
+  });
+  paymentNotice.replaceChildren(link);
+}
+
+checkout.addEventListener("click", () => {
+  if (cart.length === 0) return;
+  paymentForm.reset();
+  paymentNotice.textContent = "";
+  renderPaymentSummary();
+  payment.showModal();
+});
+
+backToCart.addEventListener("click", () => payment.close());
+payment.addEventListener("cancel", (event) => {
+  if (paying) event.preventDefault();
+});
+
+paymentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (paying || cart.length === 0) return;
+  const method = new FormData(paymentForm).get("method");
+  if (method !== "tarjeta" && method !== "transferencia") return;
+  paying = true;
+  paymentMethods.disabled = true;
+  backToCart.disabled = true;
+  confirmPayment.disabled = true;
+  paymentNotice.textContent = "Verificando tu compra…";
 
   try {
+    if (await refreshCart()) {
+      paymentNotice.textContent = cart.length
+        ? "El carrito cambió. Revisa el total antes de confirmar de nuevo."
+        : "Las piezas ya no están disponibles. Vuelve al carrito para elegir otras.";
+      return;
+    }
+
     const response = await fetch("/api/invoices", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -327,27 +424,25 @@ checkout.addEventListener("click", async () => {
     const data = await response.json();
     if (!response.ok) {
       if ([404, 409].includes(response.status)) await refreshCart().catch(() => {});
-      if (response.status === 401) {
-        const link = document.createElement("a");
-        link.href = "acceso.html";
-        link.textContent = "Inicia sesión para generar tu factura.";
-        cartNotice.replaceChildren(link);
-      } else {
-        cartNotice.textContent = data.error || "No se pudo generar la factura.";
-      }
+      if (response.status === 401) offerLogin();
+      else paymentNotice.textContent = data.error || "No se pudo confirmar la compra.";
       return;
     }
 
     cart.length = 0;
     cartNotice.textContent = "";
+    payment.close();
     setCartOpen(false);
-    showInvoice(data.invoice);
+    showInvoice(data.invoice, method);
     loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
   } catch {
-    cartNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
+    paymentNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
   } finally {
-    cartPanel.setAttribute("aria-busy", "false");
+    paying = false;
+    paymentMethods.disabled = false;
+    backToCart.disabled = false;
     renderCart();
+    if (payment.open) renderPaymentSummary();
   }
 });
 
