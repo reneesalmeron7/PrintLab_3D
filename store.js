@@ -179,6 +179,24 @@ const PrintLab = (function () {
     return user;
   }
 
+  function recordInvoice(buyer, lines) {
+    const saved = invoices();
+    const invoice = {
+      id: "f" + Date.now(),
+      buyer: buyer,
+      created: new Date().toLocaleString("es-MX"),
+      items: lines.map((line) => ({
+        name: line.name,
+        price: line.price,
+        qty: line.qty
+      })),
+      total: lines.reduce((sum, line) => sum + line.price * line.qty, 0)
+    };
+    saved.unshift(invoice);
+    write(INVOICES, saved);
+    return invoice;
+  }
+
   function checkout(buyer, lines) {
     const list = products();
     const ok = lines.every((line) => {
@@ -280,6 +298,7 @@ const PrintLab = (function () {
     addRequest: addRequest,
     setRequestStatus: setRequestStatus,
     updateUser: updateUser,
+    recordInvoice: recordInvoice,
     checkout: checkout,
     guard: guard,
     mountSession: mountSession

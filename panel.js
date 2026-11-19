@@ -50,8 +50,14 @@ if (session) {
     photoPreview.removeAttribute("src");
   }
 
-  function paintProducts() {
-    const items = PrintLab.products();
+  async function loadProducts() {
+    const response = await fetch("/api/products");
+    const data = await response.json();
+    return data.products || [];
+  }
+
+  async function paintProducts() {
+    const items = await loadProducts();
     productList.replaceChildren();
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -87,7 +93,7 @@ if (session) {
       edit.className = "text-link";
       edit.textContent = "Editar";
       edit.addEventListener("click", () => {
-        productForm.elements.id.value = product.id;
+        productForm.elements.id.value = String(product.id);
         productForm.elements.nombre.value = product.name;
         productForm.elements.descripcion.value = product.description;
         productForm.elements.precio.value = product.price;
@@ -111,9 +117,9 @@ if (session) {
       remove.type = "button";
       remove.className = "danger";
       remove.textContent = "Quitar";
-      remove.addEventListener("click", () => {
-        PrintLab.removeProduct(product.id);
-        if (productForm.elements.id.value === product.id) resetForm();
+      remove.addEventListener("click", async () => {
+        await fetch("/api/products/" + product.id, { method: "DELETE", credentials: "include" });
+        if (String(productForm.elements.id.value) === String(product.id)) resetForm();
         paintProducts();
       });
       actions.append(edit, remove);
@@ -279,10 +285,9 @@ if (session) {
     const data = new FormData(productForm);
     const id = String(data.get("id") || "");
     const file = photoInput.files[0];
-    readPhoto(file).then((image) => {
+    readPhoto(file).then(async (image) => {
       const changes = {
         name: String(data.get("nombre")).trim(),
-        category: "Catálogo",
         material: data.get("material"),
         time: String(data.get("tiempo")).trim(),
         price: Number(data.get("precio")),
@@ -290,18 +295,19 @@ if (session) {
         description: String(data.get("descripcion")).trim()
       };
       if (image) changes.image = image;
-      if (id) {
-        const current = PrintLab.products().find((item) => item.id === id);
-        if (current && !image) changes.image = current.image || "";
-        if (current) changes.category = current.category || "Catálogo";
-        PrintLab.updateProduct(id, changes);
-        productNote.textContent = "Cambios guardados.";
-      } else {
-        changes.image = image;
-        changes.id = "p" + Date.now();
-        PrintLab.addProduct(changes);
-        productNote.textContent = "La pieza ya está en el catálogo.";
+      if (!id) changes.category = "Catálogo";
+      const response = await fetch(id ? "/api/products/" + id : "/api/products", {
+        method: id ? "PATCH" : "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes)
+      });
+      const saved = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        productNote.textContent = saved.error || "No se pudo guardar la pieza.";
+        return;
       }
+      productNote.textContent = id ? "Cambios guardados." : "La pieza ya está en el catálogo.";
       resetForm();
       paintProducts();
     });

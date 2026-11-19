@@ -5,7 +5,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "test": "node scripts/test-auth.js"
+    "test": "node scripts/test-auth.js && node scripts/test-catalog.js"
   },
   "repository": {
     "type": "git",

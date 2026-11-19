@@ -11,7 +11,29 @@ const cartPanel = document.querySelector("#cartPanel");
 const fileName = document.querySelector("#fileName");
 
 const cart = [];
+let catalog = [];
 let filter = "todos";
+
+function asProduct(product) {
+  return {
+    id: String(product.id),
+    name: product.name,
+    category: product.category || "",
+    material: product.material,
+    time: product.time || "",
+    price: Number(product.price),
+    stock: Number(product.stock),
+    image: product.image || "",
+    description: product.description || ""
+  };
+}
+
+async function loadCatalog() {
+  const response = await fetch("/api/products");
+  const data = await response.json();
+  catalog = (data.products || []).map(asProduct);
+  syncCatalog();
+}
 
 PrintLab.mountSession();
 
@@ -103,7 +125,7 @@ function applyFilter() {
 }
 
 function syncCatalog() {
-  const available = PrintLab.products().filter((product) => product.stock > 0);
+  const available = catalog.filter((product) => product.stock > 0);
   const ids = new Set(available.map((product) => product.id));
   grid.querySelectorAll(".card").forEach((card) => {
     if (!ids.has(card.dataset.id)) card.remove();
@@ -145,7 +167,7 @@ grid.addEventListener("click", (event) => {
   const button = event.target.closest(".add");
   if (!button) return;
   const card = button.closest(".card");
-  const product = PrintLab.products().find((item) => item.id === card.dataset.id);
+  const product = catalog.find((item) => item.id === card.dataset.id);
   if (!product || product.stock < 1) {
     showToast("Esa pieza está agotada.");
     syncCatalog();
@@ -171,7 +193,7 @@ document.querySelector("#closeCart").addEventListener("click", () => {
   cartPanel.hidden = true;
 });
 
-document.querySelector("#checkout").addEventListener("click", () => {
+document.querySelector("#checkout").addEventListener("click", async () => {
   if (cart.length === 0) {
     showToast("El carrito está vacío.");
     return;
@@ -181,23 +203,37 @@ document.querySelector("#checkout").addEventListener("click", () => {
     showToast("Entra para generar la factura.");
     return;
   }
-  const invoice = PrintLab.checkout(current.username, cart);
-  if (!invoice) {
-    cart.forEach((line) => {
-      const product = PrintLab.products().find((item) => item.id === line.id);
-      line.qty = product ? Math.min(line.qty, product.stock) : 0;
-    });
-    for (let index = cart.length - 1; index >= 0; index -= 1) {
-      if (cart[index].qty < 1) cart.splice(index, 1);
-    }
-    renderCart();
-    syncCatalog();
+  const ready = cart.every((line) => {
+    const product = catalog.find((item) => item.id === line.id);
+    return product && product.stock >= line.qty;
+  });
+  if (!ready) {
+    await loadCatalog();
     showToast("El stock cambió. Revisa el carrito.");
     return;
   }
+  try {
+    for (const line of cart) {
+      const response = await fetch("/api/products/" + line.id + "/consume", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity: line.qty })
+      });
+      if (!response.ok) {
+        await loadCatalog();
+        showToast("El stock cambió. Revisa el carrito.");
+        return;
+      }
+    }
+  } catch (err) {
+    showToast("No se pudo contactar al servidor.");
+    return;
+  }
+  const invoice = PrintLab.recordInvoice(current.username, cart);
   cart.splice(0, cart.length);
   renderCart();
-  syncCatalog();
+  await loadCatalog();
   showToast("Factura " + invoice.id + " por $" + invoice.total);
 });
 
@@ -258,5 +294,5 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
   fileName.textContent = file ? file.name : "Ningún archivo elegido";
 });
 
-syncCatalog();
+loadCatalog();
 renderCart();
