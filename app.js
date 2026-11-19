@@ -15,6 +15,7 @@ const cartNotice = document.querySelector("#cartNotice");
 const payment = document.querySelector("#payment");
 const paymentForm = document.querySelector("#paymentForm");
 const paymentMethods = document.querySelector("#paymentMethods");
+const paymentDetails = paymentMethods.querySelectorAll("[data-payment-details]");
 const paymentNotice = document.querySelector("#paymentNotice");
 const confirmPayment = document.querySelector("#confirmPayment");
 const backToCart = document.querySelector("#backToCart");
@@ -35,6 +36,10 @@ const catalogArtwork = new Map(
 
 const cart = [];
 const cartBeforeLogin = "pl-cart-before-login";
+const demoPaymentProfiles = {
+  tarjeta: { titular: "Cliente Demo", vencimiento: "12/30", numero: "•••• •••• •••• 4242" },
+  transferencia: { banco: "Banco Demo", beneficiario: "PrintLab 3D", cuenta: "•••• •••• 5678" }
+};
 let paying = false;
 let catalog = [];
 let filter = "todos";
@@ -319,7 +324,7 @@ function showInvoice(invoice, method) {
   document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
   document.querySelector("#invoiceDetails").textContent =
     invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
-  document.querySelector("#invoicePayment").textContent = "Pago de prueba con " + method + ".";
+  document.querySelector("#invoicePayment").textContent = "Pago simulado con " + method + ".";
   const body = document.querySelector("#invoiceItems");
   body.replaceChildren();
   for (const item of invoice.items) {
@@ -367,7 +372,36 @@ function renderPaymentSummary() {
     list.append(row);
   }
   document.querySelector("#paymentTotal").textContent = money.format(cartAmount());
-  confirmPayment.disabled = paying || cart.length === 0;
+  updatePaymentMethod();
+}
+
+function selectedPaymentMethod() {
+  return paymentForm.querySelector('input[name="method"]:checked')?.value;
+}
+
+function updatePaymentMethod() {
+  const method = selectedPaymentMethod();
+  let filled = false;
+  for (const details of paymentDetails) {
+    details.hidden = details.dataset.paymentDetails !== method;
+    if (!details.hidden) {
+      filled = [...details.querySelectorAll("[data-payment-field]")].every((field) => field.value);
+    }
+  }
+  confirmPayment.disabled = paying || cart.length === 0 || !filled;
+}
+
+paymentMethods.addEventListener("change", updatePaymentMethod);
+
+for (const details of paymentDetails) {
+  details.querySelector("button").addEventListener("click", () => {
+    const profile = demoPaymentProfiles[details.dataset.paymentDetails];
+    for (const field of details.querySelectorAll("[data-payment-field]")) {
+      field.value = profile[field.dataset.paymentField];
+    }
+    paymentNotice.textContent = "Se cargaron los datos guardados de la demostración.";
+    updatePaymentMethod();
+  });
 }
 
 function offerLogin() {
@@ -399,9 +433,8 @@ payment.addEventListener("cancel", (event) => {
 
 paymentForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  if (paying || cart.length === 0) return;
-  const method = new FormData(paymentForm).get("method");
-  if (method !== "tarjeta" && method !== "transferencia") return;
+  if (confirmPayment.disabled) return;
+  const method = selectedPaymentMethod();
   paying = true;
   paymentMethods.disabled = true;
   backToCart.disabled = true;
