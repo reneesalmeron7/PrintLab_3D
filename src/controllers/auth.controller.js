@@ -255,12 +255,23 @@ async function deleteUser(req, res) {
     return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador." });
   }
 
-  const [result] = await pool.execute("DELETE FROM users WHERE id = ?", [id]);
-  if (result.affectedRows === 0) {
-    return res.status(404).json({ error: "Usuario no encontrado." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await connection.execute("DELETE FROM custom_requests WHERE user_id = ?", [id]);
+    const [result] = await connection.execute("DELETE FROM users WHERE id = ?", [id]);
+    if (result.affectedRows === 0) {
+      await connection.rollback();
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+    await connection.commit();
+    res.json({ ok: true });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-
-  res.json({ ok: true });
 }
 
 function me(req, res) {
