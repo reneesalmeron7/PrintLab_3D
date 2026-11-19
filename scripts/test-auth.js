@@ -90,13 +90,21 @@ async function main() {
   }
   check("el login no limita intentos", blocked === false);
 
-  const failures = await request("/api/auth/login-failures", { cookie: admin.cookie });
-  const recorded = (failures.data.failures || []).filter((item) => {
+  const failures = await request("/api/auth/login-attempts", { cookie: admin.cookie });
+  const attempts = failures.data.attempts || [];
+  const recorded = attempts.filter((item) => {
     return item.username === "admin" && item.reason === "contrasena_incorrecta";
+  });
+  const succeeded = attempts.filter((item) => {
+    return item.username === "admin" && item.reason === "exitoso";
   });
   check(
     "el fallo queda con fecha e ip",
     failures.status === 200 && recorded.length >= 5 && recorded[0].ip && recorded[0].createdAt
+  );
+  check(
+    "el acceso correcto también queda registrado",
+    succeeded.length >= 1 && succeeded[0].ip && succeeded[0].createdAt
   );
 
   if (process.exitCode) {

@@ -31,9 +31,13 @@ async function ensureLoginFailuresTable() {
       ip_address VARCHAR(45) NOT NULL,
       forwarded_for VARCHAR(255) NULL,
       user_agent VARCHAR(255) NULL,
-      reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada') NOT NULL,
+      reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada', 'exitoso') NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     ) ENGINE=InnoDB
+  `);
+  await pool.query(`
+    ALTER TABLE login_failures
+    MODIFY reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada', 'exitoso') NOT NULL
   `);
 }
 
@@ -47,7 +51,7 @@ function attemptContext(req) {
   };
 }
 
-async function recordLoginFailure(req, username, reason) {
+async function recordLoginAttempt(req, username, reason) {
   const context = attemptContext(req);
   await pool.execute(
     `INSERT INTO login_failures (username, ip_address, forwarded_for, user_agent, reason)
@@ -117,14 +121,15 @@ async function login(req, res) {
   const found = rows[0];
   const matches = found ? await bcrypt.compare(password, found.password_hash) : false;
   if (!found || !matches) {
-    await recordLoginFailure(req, username, found ? "contrasena_incorrecta" : "usuario_inexistente");
+    await recordLoginAttempt(req, username, found ? "contrasena_incorrecta" : "usuario_inexistente");
     return res.status(401).json({ error: "Usuario o contraseña incorrectos." });
   }
   if (!found.active) {
-    await recordLoginFailure(req, username, "cuenta_desactivada");
+    await recordLoginAttempt(req, username, "cuenta_desactivada");
     return res.status(403).json({ error: "Esta cuenta está desactivada." });
   }
 
+  await recordLoginAttempt(req, username, "exitoso");
   const user = publicUser(found);
   req.session.user = user;
   res.json({ user });
@@ -144,17 +149,16 @@ async function listLoginFailures(req, res) {
      ORDER BY id DESC
      LIMIT 200`
   );
-  res.json({
-    failures: rows.map((row) => ({
-      id: row.id,
-      username: row.username,
-      ip: row.ip_address,
-      forwardedFor: row.forwarded_for,
-      userAgent: row.user_agent,
-      reason: row.reason,
-      createdAt: row.created_at
-    }))
-  });
+  const attempts = rows.map((row) => ({
+    id: row.id,
+    username: row.username,
+    ip: row.ip_address,
+    forwardedFor: row.forwarded_for,
+    userAgent: row.user_agent,
+    reason: row.reason,
+    createdAt: row.created_at
+  }));
+  res.json({ attempts });
 }
 
 async function listUsers(req, res) {

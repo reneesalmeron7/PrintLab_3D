@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS login_failures (
   ip_address VARCHAR(45) NOT NULL,
   forwarded_for VARCHAR(255) NULL,
   user_agent VARCHAR(255) NULL,
-  reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada') NOT NULL,
+  reason ENUM('usuario_inexistente', 'contrasena_incorrecta', 'cuenta_desactivada', 'exitoso') NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
