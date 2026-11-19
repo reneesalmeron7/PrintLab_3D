@@ -197,6 +197,17 @@ document.querySelector("#closeCart").addEventListener("click", () => {
   cartPanel.hidden = true;
 });
 
+const invoiceModal = document.querySelector("#invoiceModal");
+const invoiceModalBody = document.querySelector("#invoiceModalBody");
+const closeInvoiceModal = document.querySelector("#closeInvoiceModal");
+const closeInvoiceModalBtn = document.querySelector("#closeInvoiceModalBtn");
+
+function hideInvoiceModal() {
+  if (invoiceModal) invoiceModal.hidden = true;
+}
+if (closeInvoiceModal) closeInvoiceModal.addEventListener("click", hideInvoiceModal);
+if (closeInvoiceModalBtn) closeInvoiceModalBtn.addEventListener("click", hideInvoiceModal);
+
 document.querySelector("#checkout").addEventListener("click", async () => {
   if (cart.length === 0) {
     showToast("El carrito está vacío.");
@@ -208,7 +219,7 @@ document.querySelector("#checkout").addEventListener("click", async () => {
     return;
   }
   const ready = cart.every((line) => {
-    const product = catalog.find((item) => item.id === line.id);
+    const product = catalog.find((item) => String(item.id) === String(line.id));
     return product && product.stock >= line.qty;
   });
   if (!ready) {
@@ -216,29 +227,68 @@ document.querySelector("#checkout").addEventListener("click", async () => {
     showToast("El stock cambió. Revisa el carrito.");
     return;
   }
+
   try {
-    for (const line of cart) {
-      const response = await fetch("/api/products/" + line.id + "/consume", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: line.qty })
-      });
-      if (!response.ok) {
-        await loadCatalog();
-        showToast("El stock cambió. Revisa el carrito.");
-        return;
-      }
+    const response = await fetch("/api/invoices", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: cart.map((item) => ({ id: item.id, qty: item.qty }))
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      await loadCatalog();
+      showToast(data.error || "No se pudo generar la factura.");
+      return;
     }
+
+    const inv = data.invoice;
+    cart.splice(0, cart.length);
+    renderCart();
+    cartPanel.hidden = true;
+    await loadCatalog();
+
+    if (invoiceModal && invoiceModalBody) {
+      invoiceModalBody.innerHTML = `
+        <div style="border-bottom:1px solid #ddd;padding-bottom:0.75rem;margin-bottom:0.75rem;">
+          <h3 style="margin:0 0 0.25rem 0;">Comprobante de Factura #${inv.id}</h3>
+          <p style="margin:0;color:#666;font-size:0.9rem;"><strong>Cliente:</strong> ${inv.buyer}</p>
+          <p style="margin:0;color:#666;font-size:0.9rem;"><strong>Fecha:</strong> ${new Date(inv.createdAt).toLocaleString("es-MX")}</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+          <thead>
+            <tr style="border-bottom:1px solid #eee;text-align:left;">
+              <th style="padding:4px 0;">Pieza</th>
+              <th style="padding:4px 0;text-align:center;">Cant.</th>
+              <th style="padding:4px 0;text-align:right;">P. Unit.</th>
+              <th style="padding:4px 0;text-align:right;">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${inv.items.map((it) => `
+              <tr style="border-bottom:1px solid #f4f4f4;">
+                <td style="padding:6px 0;">${it.name}</td>
+                <td style="padding:6px 0;text-align:center;">${it.qty}</td>
+                <td style="padding:6px 0;text-align:right;">$${Number(it.price).toFixed(2)}</td>
+                <td style="padding:6px 0;text-align:right;">$${(Number(it.price) * it.qty).toFixed(2)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <div style="margin-top:1rem;padding-top:0.5rem;border-top:2px solid #333;text-align:right;font-size:1.1rem;font-weight:bold;">
+          Total pagado: $${Number(inv.total).toFixed(2)}
+        </div>
+      `;
+      invoiceModal.hidden = false;
+    }
+
+    showToast("Factura #" + inv.id + " generada con éxito.");
   } catch (err) {
     showToast("No se pudo contactar al servidor.");
-    return;
   }
-  const invoice = PrintLab.recordInvoice(current.username, cart);
-  cart.splice(0, cart.length);
-  renderCart();
-  await loadCatalog();
-  showToast("Factura " + invoice.id + " por $" + invoice.total);
 });
 
 function renderCart() {

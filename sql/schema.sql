@@ -68,7 +68,9 @@ INSERT INTO categories (name, description) VALUES
   ('Figuras', 'Figuras decorativas y coleccionables'),
   ('Llaveros', 'Llaveros personalizados'),
   ('Repuestos', 'Piezas de repuesto funcionales'),
-  ('Prototipos', 'Prototipos y maquetas');
+  ('Prototipos', 'Prototipos y maquetas'),
+  ('Escritorio', 'Organizadores, soportes y accesorios de trabajo'),
+  ('Hogar', 'Macetas, lámparas y artículos decorativos');
 
 -- ROLES
 -- 1. Rol de Administrador
@@ -90,5 +92,9 @@ CREATE ROLE IF NOT EXISTS 'rol_app';
 GRANT SELECT, INSERT, UPDATE, DELETE ON printlab3d.* TO 'rol_app';
 GRANT 'rol_app' TO 'printlab_user'@'%';
 SET DEFAULT ROLE 'rol_app' FOR 'printlab_user'@'%';
+
+-- 4. Deshabilitar usuario root
+DROP USER IF EXISTS 'root'@'%';
+ALTER USER IF EXISTS 'root'@'localhost' ACCOUNT LOCK;
 
 FLUSH PRIVILEGES;

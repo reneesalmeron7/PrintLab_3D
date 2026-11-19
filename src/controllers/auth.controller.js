@@ -206,6 +206,63 @@ async function updateUser(req, res) {
   res.json({ user: publicUser(updated[0]) });
 }
 
+async function createUser(req, res) {
+  const username = String(req.body.username || "").trim();
+  const email = String(req.body.email || "").trim();
+  const password = String(req.body.password || "");
+  const role = String(req.body.role || "comprador");
+
+  if (!username || !email || !password) {
+    return res.status(400).json({ error: "Usuario, correo y contraseña son obligatorios." });
+  }
+  if (!["comprador", "vendedor", "admin"].includes(role)) {
+    return res.status(400).json({ error: "Rol no permitido." });
+  }
+  if (username.length > 50 || email.length > 100) {
+    return res.status(400).json({ error: "Usuario o correo demasiado largo." });
+  }
+
+  const [existing] = await pool.execute(
+    "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1",
+    [username, email]
+  );
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "Ese usuario o correo ya existe." });
+  }
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  const [result] = await pool.execute(
+    "INSERT INTO users (username, password_hash, email, role, active) VALUES (?, ?, ?, ?, 1)",
+    [username, passwordHash, email, role]
+  );
+
+  res.status(201).json({
+    user: {
+      id: result.insertId,
+      username,
+      email,
+      role,
+      active: true
+    }
+  });
+}
+
+async function deleteUser(req, res) {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "ID inválido." });
+
+  if (req.session.user.id === id) {
+    return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de administrador." });
+  }
+
+  const [result] = await pool.execute("DELETE FROM users WHERE id = ?", [id]);
+  if (result.affectedRows === 0) {
+    return res.status(404).json({ error: "Usuario no encontrado." });
+  }
+
+  res.json({ ok: true });
+}
+
 function me(req, res) {
   if (!req.session || !req.session.user) {
     return res.status(401).json({ error: "No hay sesión." });
@@ -222,6 +279,8 @@ module.exports = {
   logout,
   me,
   listUsers,
+  createUser,
   updateUser,
+  deleteUser,
   listLoginFailures
 };
