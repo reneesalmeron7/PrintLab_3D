@@ -300,18 +300,37 @@
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <button class="cart" id="cartBtn" type="button" aria-live="polite">
+  <button class="cart" id="cartBtn" type="button" aria-expanded="false" aria-controls="cartPanel">
     Carrito <span id="cartCount">0</span>
   </button>
-  <div class="cart-panel" id="cartPanel" hidden>
+  <div class="cart-panel" id="cartPanel" aria-label="Tu carrito" hidden>
     <header>
       <strong>Tu carrito</strong>
-      <button type="button" id="closeCart">Cerrar</button>
+      <button type="button" id="closeCart" class="ghost">Cerrar</button>
     </header>
     <ul id="cartList"></ul>
     <p class="total">Total <span id="cartTotal">$0</span></p>
-    <button class="solid full" type="button" id="checkout">Generar factura</button>
+    <p id="cartNotice" class="form-note" role="status"></p>
+    <button class="solid full" type="button" id="checkout" disabled>Generar factura</button>
   </div>
+
+  <dialog class="invoice" id="invoice" aria-labelledby="invoiceTitle">
+    <p class="eyebrow dark">PrintLab 3D</p>
+    <h2 id="invoiceTitle"></h2>
+    <p id="invoiceDetails"></p>
+    <table>
+      <caption class="sr">Detalle de la compra</caption>
+      <thead>
+        <tr><th scope="col">Producto</th><th scope="col">Cant.</th><th scope="col">Precio unitario</th><th scope="col">Subtotal</th></tr>
+      </thead>
+      <tbody id="invoiceItems"></tbody>
+    </table>
+    <p class="total">Total <span id="invoiceTotal"></span></p>
+    <form method="dialog" class="invoice-actions">
+      <button class="ghost" type="button" id="printInvoice">Imprimir</button>
+      <button class="solid" type="submit">Cerrar</button>
+    </form>
+  </dialog>
 
   <script src="store.js"></script>
   <script src="app.js"></script>

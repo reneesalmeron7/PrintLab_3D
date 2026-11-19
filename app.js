@@ -8,6 +8,11 @@ const cartCount = document.querySelector("#cartCount");
 const cartList = document.querySelector("#cartList");
 const cartTotal = document.querySelector("#cartTotal");
 const cartPanel = document.querySelector("#cartPanel");
+const cartBtn = document.querySelector("#cartBtn");
+const checkout = document.querySelector("#checkout");
+const cartNotice = document.querySelector("#cartNotice");
+const invoiceDialog = document.querySelector("#invoice");
+const money = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 const fileName = document.querySelector("#fileName");
 
 const cart = [];
@@ -33,6 +38,7 @@ let catalogToken = 0;
 async function loadCatalog() {
   const token = ++catalogToken;
   const response = await fetch("/api/products", { cache: "no-store" });
+  if (!response.ok) throw new Error("No se pudo cargar el catálogo.");
   const data = await response.json();
   if (token !== catalogToken) return;
   catalog = (data.products || []).map(asProduct);
@@ -78,7 +84,7 @@ function updateCard(card, product) {
   card.querySelector(".meta").textContent = product.category + " · " + product.time;
   card.querySelector("h3").textContent = product.name;
   card.querySelector(".card-body > p:not(.meta)").textContent = product.description;
-  card.querySelector("strong").textContent = "$" + product.price;
+  card.querySelector("strong").textContent = money.format(product.price);
 }
 
 function cardFrom(product) {
@@ -106,7 +112,7 @@ function cardFrom(product) {
   text.textContent = product.description;
   const footer = document.createElement("footer");
   const price = document.createElement("strong");
-  price.textContent = "$" + product.price;
+  price.textContent = money.format(product.price);
   const add = document.createElement("button");
   add.type = "button";
   add.className = "add";
@@ -169,7 +175,7 @@ document.querySelectorAll(".chip").forEach((chip) => {
 
 grid.addEventListener("click", (event) => {
   const button = event.target.closest(".add");
-  if (!button) return;
+  if (!button || cartPanel.getAttribute("aria-busy") === "true") return;
   const card = button.closest(".card");
   const product = catalog.find((item) => item.id === card.dataset.id);
   if (!product || product.stock < 1) {
@@ -185,83 +191,145 @@ grid.addEventListener("click", (event) => {
   }
   if (line) line.qty += 1;
   else cart.push({ id: product.id, name: product.name, price: product.price, qty: 1 });
+  cartNotice.textContent = "";
   renderCart();
   showToast(product.name + " entró al carrito");
 });
 
-document.querySelector("#cartBtn").addEventListener("click", () => {
-  cartPanel.hidden = !cartPanel.hidden;
+function setCartOpen(open) {
+  cartPanel.hidden = !open;
+  cartBtn.setAttribute("aria-expanded", String(open));
+  if (open) document.querySelector("#closeCart").focus();
+  else cartBtn.focus();
+}
+
+cartBtn.addEventListener("click", () => setCartOpen(cartPanel.hidden));
+document.querySelector("#closeCart").addEventListener("click", () => setCartOpen(false));
+cartPanel.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") setCartOpen(false);
 });
 
-document.querySelector("#closeCart").addEventListener("click", () => {
-  cartPanel.hidden = true;
-});
-
-document.querySelector("#checkout").addEventListener("click", async () => {
-  if (cart.length === 0) {
-    showToast("El carrito está vacío.");
+function changeQuantity(item, delta) {
+  const product = catalog.find((entry) => entry.id === item.id);
+  if (delta > 0 && (!product || item.qty >= product.stock)) {
+    cartNotice.textContent = "No hay más stock de " + item.name + ".";
     return;
   }
-  const current = PrintLab.session();
-  if (!current) {
-    showToast("Entra para generar la factura.");
-    return;
-  }
-  const ready = cart.every((line) => {
-    const product = catalog.find((item) => item.id === line.id);
-    return product && product.stock >= line.qty;
-  });
-  if (!ready) {
-    await loadCatalog();
-    showToast("El stock cambió. Revisa el carrito.");
-    return;
-  }
-  try {
-    for (const line of cart) {
-      const response = await fetch("/api/products/" + line.id + "/consume", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity: line.qty })
-      });
-      if (!response.ok) {
-        await loadCatalog();
-        showToast("El stock cambió. Revisa el carrito.");
-        return;
-      }
-    }
-  } catch (err) {
-    showToast("No se pudo contactar al servidor.");
-    return;
-  }
-  const invoice = PrintLab.recordInvoice(current.username, cart);
-  cart.splice(0, cart.length);
+  item.qty += delta;
+  if (item.qty === 0) cart.splice(cart.indexOf(item), 1);
+  cartNotice.textContent = "";
   renderCart();
-  await loadCatalog();
-  showToast("Factura " + invoice.id + " por $" + invoice.total);
-});
+}
+
+function quantityButton(item, text, label, delta) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "ghost";
+  button.textContent = text;
+  button.setAttribute("aria-label", label + " " + item.name);
+  button.addEventListener("click", () => changeQuantity(item, delta));
+  return button;
+}
 
 function renderCart() {
-  const pieces = cart.reduce((sum, item) => sum + item.qty, 0);
-  cartCount.textContent = String(pieces);
+  const focused = document.activeElement;
+  cartCount.textContent = String(cart.reduce((sum, item) => sum + item.qty, 0));
   cartList.replaceChildren();
   let total = 0;
-  cart.forEach((item) => {
+  for (const item of cart) {
     total += item.price * item.qty;
     const li = document.createElement("li");
-    li.textContent = item.qty + " × " + item.name;
-    const price = document.createElement("span");
-    price.textContent = "$" + item.price * item.qty;
-    li.append(price);
+    const name = document.createElement("span");
+    name.textContent = item.qty + " × " + item.name;
+    const price = document.createElement("strong");
+    price.textContent = money.format(item.price * item.qty);
+    const controls = document.createElement("div");
+    controls.className = "cart-quantity";
+    controls.append(quantityButton(item, "−", "Quitar una unidad de", -1));
+    controls.append(quantityButton(item, "+", "Agregar una unidad de", 1));
+    li.append(name, price, controls);
     cartList.append(li);
-  });
+  }
   if (cart.length === 0) {
     const li = document.createElement("li");
     li.textContent = "Todavía no hay piezas.";
     cartList.append(li);
   }
-  cartTotal.textContent = "$" + total;
+  cartTotal.textContent = money.format(total);
+  checkout.disabled = cart.length === 0;
+  if (focused.closest(".cart-quantity")) {
+    const corresponding = [...cartList.querySelectorAll("button")]
+      .find((button) => button.getAttribute("aria-label") === focused.getAttribute("aria-label"));
+    (corresponding || document.querySelector("#closeCart")).focus();
+  }
 }
+
+function showInvoice(invoice) {
+  document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
+  document.querySelector("#invoiceDetails").textContent =
+    invoice.buyer + " · " + new Date(invoice.created).toLocaleString("es-SV");
+  const body = document.querySelector("#invoiceItems");
+  body.replaceChildren();
+  for (const item of invoice.items) {
+    const row = body.insertRow();
+    for (const value of [item.name, item.qty, money.format(item.price), money.format(item.price * item.qty)]) {
+      row.insertCell().textContent = value;
+    }
+  }
+  document.querySelector("#invoiceTotal").textContent = money.format(invoice.total);
+  invoiceDialog.showModal();
+}
+
+document.querySelector("#printInvoice").addEventListener("click", () => window.print());
+
+async function refreshCart() {
+  await loadCatalog();
+  for (const item of cart.slice()) {
+    const product = catalog.find((entry) => entry.id === item.id);
+    if (!product || product.stock === 0) cart.splice(cart.indexOf(item), 1);
+    else Object.assign(item, { qty: Math.min(item.qty, product.stock), name: product.name, price: product.price });
+  }
+}
+
+checkout.addEventListener("click", async () => {
+  if (cart.length === 0 || checkout.disabled) return;
+  checkout.disabled = true;
+  cartList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+  cartPanel.setAttribute("aria-busy", "true");
+  cartNotice.textContent = "Generando factura…";
+
+  try {
+    const response = await fetch("/api/invoices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items: cart.map(({ id, qty }) => ({ id: Number(id), qty })) })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      if (response.status === 409) await refreshCart().catch(() => {});
+      if (response.status === 401) {
+        const link = document.createElement("a");
+        link.href = "acceso.html";
+        link.textContent = "Inicia sesión para generar tu factura.";
+        cartNotice.replaceChildren(link);
+      } else {
+        cartNotice.textContent = data.error || "No se pudo generar la factura.";
+      }
+      return;
+    }
+
+    cart.length = 0;
+    cartNotice.textContent = "";
+    setCartOpen(false);
+    showInvoice(data.invoice);
+    loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+  } catch {
+    cartNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
+  } finally {
+    cartPanel.setAttribute("aria-busy", "false");
+    renderCart();
+  }
+});
 
 document.querySelector("#requestForm").addEventListener("submit", (event) => {
   event.preventDefault();
@@ -298,8 +366,10 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
   fileName.textContent = file ? file.name : "Ningún archivo elegido";
 });
 
-loadCatalog();
+loadCatalog().catch(() => showToast("No se pudo cargar el catálogo."));
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") loadCatalog();
+  if (document.visibilityState === "visible") {
+    loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+  }
 });
 renderCart();
