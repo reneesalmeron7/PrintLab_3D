@@ -38,6 +38,44 @@ function check(name, condition) {
   console.log("ok:", name);
 }
 
+async function checkInvoiceGuards({ product, otherProduct, seller, buyer }) {
+  const admin = await request("/api/auth/login", {
+    method: "POST",
+    body: { username: "admin", password: "admin123" }
+  });
+  check("administrador inicia sesión para verificar las facturas", admin.status === 200 && !!admin.cookie);
+
+  const postInvoice = (items, cookie) => request("/api/invoices", {
+    method: "POST",
+    body: { items },
+    cookie
+  });
+  const items = [{ id: product.id, qty: 1 }];
+  check("la compra requiere sesión", (await postInvoice(items)).status === 401);
+  check("la sesión de vendedor no puede comprar", (await postInvoice(items, seller.cookie)).status === 403);
+  check("el listado de facturas requiere sesión", (await request("/api/invoices")).status === 401);
+  const ownInvoices = await request("/api/invoices", { cookie: buyer.cookie });
+  check("el comprador solo puede listar sus propias facturas",
+    ownInvoices.status === 200 && Array.isArray(ownInvoices.data.invoices)
+      && ownInvoices.data.invoices.every((invoice) => invoice.buyer === buyer.data.user.username));
+  check("la compra requiere al menos un producto", (await postInvoice([], buyer.cookie)).status === 400);
+  check("la compra se rechaza si una pieza no tiene stock suficiente",
+    (await postInvoice([...items, { id: otherProduct.id, qty: otherProduct.stock + 1 }], buyer.cookie)).status === 409);
+
+  const { data } = await request("/api/products");
+  for (const fixture of [product, otherProduct]) {
+    const item = data.products.find(({ id }) => id === fixture.id);
+    check("el stock permanece igual tras rechazar la compra: " + fixture.name, item?.stock === fixture.stock);
+  }
+
+  const invoices = await request("/api/invoices", { cookie: admin.cookie });
+  check("las compras rechazadas no dejan facturas",
+    invoices.status === 200 && Array.isArray(invoices.data.invoices)
+      && !invoices.data.invoices.some((invoice) => invoice.items.some(
+        (item) => item.name === product.name || item.name === otherProduct.name
+      )));
+}
+
 async function main() {
   const stamp = Date.now();
   const name = "Pieza de prueba " + stamp;
@@ -72,6 +110,25 @@ async function main() {
     body: { name: "Otra", description: "No", price: 1, stock: 1, material: "PLA" }
   });
   check("comprador no crea piezas", forbidden.status === 403);
+
+  const limited = await request("/api/products", {
+    method: "POST",
+    cookie: seller.cookie,
+    body: { name: name + " (stock limitado)", price: 10, stock: 1, material: "PLA" }
+  });
+  const otherProduct = limited.data.product;
+  check("se crea una segunda pieza con stock limitado", limited.status === 201 && otherProduct?.stock === 1);
+  try {
+    if (otherProduct) await checkInvoiceGuards({ product, otherProduct, seller, buyer });
+  } finally {
+    if (otherProduct) {
+      const cleanup = await request("/api/products/" + otherProduct.id, {
+        method: "DELETE",
+        cookie: seller.cookie
+      });
+      check("se elimina la pieza temporal de stock limitado", cleanup.status === 200);
+    }
+  }
 
   const consumed = await request("/api/products/" + product.id + "/consume", {
     method: "POST",
