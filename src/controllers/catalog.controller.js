@@ -123,6 +123,7 @@ async function listProducts(req, res) {
      LEFT JOIN categories c ON c.id = p.category_id
      ORDER BY p.id`
   );
+  res.set("Cache-Control", "no-store");
   res.json({ products: rows.map(publicProduct) });
 }
 

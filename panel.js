@@ -50,14 +50,18 @@ if (session) {
     photoPreview.removeAttribute("src");
   }
 
+  let productToken = 0;
+
   async function loadProducts() {
-    const response = await fetch("/api/products");
+    const response = await fetch("/api/products", { cache: "no-store" });
     const data = await response.json();
     return data.products || [];
   }
 
   async function paintProducts() {
+    const token = ++productToken;
     const items = await loadProducts();
+    if (token !== productToken) return;
     productList.replaceChildren();
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -303,6 +307,10 @@ if (session) {
         body: JSON.stringify(changes)
       });
       const saved = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        productNote.textContent = "La sesión expiró. Entra de nuevo para guardar.";
+        return;
+      }
       if (!response.ok) {
         productNote.textContent = saved.error || "No se pudo guardar la pieza.";
         return;

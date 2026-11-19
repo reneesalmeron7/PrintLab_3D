@@ -28,9 +28,13 @@ function asProduct(product) {
   };
 }
 
+let catalogToken = 0;
+
 async function loadCatalog() {
-  const response = await fetch("/api/products");
+  const token = ++catalogToken;
+  const response = await fetch("/api/products", { cache: "no-store" });
   const data = await response.json();
+  if (token !== catalogToken) return;
   catalog = (data.products || []).map(asProduct);
   syncCatalog();
 }
@@ -295,4 +299,7 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
 });
 
 loadCatalog();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") loadCatalog();
+});
 renderCart();
