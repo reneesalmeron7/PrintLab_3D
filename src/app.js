@@ -3,6 +3,7 @@ const express = require("express");
 const session = require("express-session");
 const authRoutes = require("./routes/auth.routes");
 const catalogRoutes = require("./routes/catalog.routes");
+const requestRoutes = require("./routes/request.routes");
 
 const app = express();
 const root = path.join(__dirname, "..");
@@ -24,6 +25,7 @@ app.use(session({
 
 app.use("/api/auth", authRoutes);
 app.use("/api", catalogRoutes);
+app.use("/api", requestRoutes);
 
 app.use((req, res, next) => {
   const blocked = req.path.startsWith("/src")

@@ -57,8 +57,10 @@ CREATE TABLE IF NOT EXISTS custom_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   description TEXT NOT NULL,
+  title VARCHAR(120) NULL,
+  material VARCHAR(20) NULL,
   reference_file VARCHAR(255),
-  status ENUM('pendiente', 'en_proceso', 'completada', 'rechazada') DEFAULT 'pendiente',
+  status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'en_proceso', 'completada', 'rechazada') NOT NULL DEFAULT 'pendiente',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

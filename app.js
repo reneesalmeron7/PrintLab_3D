@@ -263,22 +263,38 @@ function renderCart() {
   cartTotal.textContent = "$" + total;
 }
 
-document.querySelector("#requestForm").addEventListener("submit", (event) => {
+document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const pieza = data.get("pieza");
+  const pieza = String(data.get("pieza")).trim();
   const material = data.get("material");
-  const current = PrintLab.session();
   const archivo = data.get("referencia");
-  PrintLab.addRequest({
-    id: "s" + Date.now(),
-    pieza: String(pieza).trim(),
-    material: material,
-    descripcion: String(data.get("descripcion")).trim(),
-    usuario: current ? current.username : "invitado",
-    archivo: archivo && archivo.name ? archivo.name : "",
-    estado: "pendiente"
-  });
+  let response;
+  try {
+    response = await fetch("/api/requests", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pieza,
+        material,
+        descripcion: String(data.get("descripcion")).trim(),
+        archivo: archivo && archivo.name ? archivo.name : ""
+      })
+    });
+  } catch (err) {
+    showToast("No se pudo contactar al servidor.");
+    return;
+  }
+  const saved = await response.json().catch(() => ({}));
+  if (response.status === 401) {
+    showToast("Entra para enviar la solicitud.");
+    return;
+  }
+  if (!response.ok) {
+    showToast(saved.error || "No se pudo registrar la solicitud.");
+    return;
+  }
   document.querySelector("#thanksTitle").textContent = pieza;
   document.querySelector("#thanksText").textContent =
     "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";

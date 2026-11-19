@@ -132,8 +132,14 @@ if (session) {
     });
   }
 
-  function paintRequests() {
-    const items = PrintLab.requests();
+  let requestToken = 0;
+
+  async function paintRequests() {
+    const token = ++requestToken;
+    const response = await fetch("/api/requests", { cache: "no-store", credentials: "include" });
+    const data = await response.json().catch(() => ({}));
+    if (token !== requestToken) return;
+    const items = data.requests || [];
     requestList.replaceChildren();
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -169,8 +175,20 @@ if (session) {
         if (state === request.estado) option.selected = true;
         select.append(option);
       });
-      select.addEventListener("change", () => {
-        PrintLab.setRequestStatus(request.id, select.value);
+      select.addEventListener("change", async () => {
+        const previous = request.estado;
+        const result = await fetch("/api/requests/" + request.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ estado: select.value })
+        });
+        if (!result.ok) {
+          select.value = previous;
+          if (productNote) productNote.textContent = "No se pudo cambiar el estado.";
+          return;
+        }
+        request.estado = select.value;
       });
       row.append(copy, select);
       requestList.append(row);
