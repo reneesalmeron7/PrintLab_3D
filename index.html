@@ -23,11 +23,11 @@
       </span>
       <span>PrintLab <em>3D</em></span>
     </a>
-    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menu">
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu">
       <span></span><span></span><span></span>
       <span class="sr">Menú</span>
     </button>
-    <nav class="menu" id="menu">
+    <nav class="menu" id="menu" aria-label="Navegación principal">
       <a href="#catalogo">Catálogo</a>
       <a href="#materiales">Materiales</a>
       <a href="#personalizada">Impresión personalizada</a>
@@ -60,21 +60,23 @@
       </div>
     </section>
 
-    <section class="catalog" id="catalogo">
+    <section class="catalog" id="catalogo" tabindex="-1">
       <div class="section-head">
         <div>
           <p class="eyebrow dark">Catálogo destacado</p>
           <h2>Piezas listas para llevar.</h2>
         </div>
-        <div class="filters" role="toolbar" aria-label="Filtrar por material">
-          <button class="chip on" data-filter="todos" type="button">Todos</button>
-          <button class="chip" data-filter="PLA" type="button">PLA</button>
-          <button class="chip" data-filter="PETG" type="button">PETG</button>
-          <button class="chip" data-filter="ABS" type="button">ABS</button>
+        <div class="filters" role="group" aria-label="Filtrar por material">
+          <button class="chip on" data-filter="todos" type="button" aria-pressed="true">Todos</button>
+          <button class="chip" data-filter="PLA" type="button" aria-pressed="false">PLA</button>
+          <button class="chip" data-filter="PETG" type="button" aria-pressed="false">PETG</button>
+          <button class="chip" data-filter="ABS" type="button" aria-pressed="false">ABS</button>
         </div>
       </div>
 
-      <div class="grid" id="grid">
+      <p class="empty" id="catalogMessage" role="status">Cargando catálogo…</p>
+      <button class="ghost catalog-retry" type="button" id="retryCatalog" hidden>Reintentar</button>
+      <div class="grid" id="grid" hidden>
         <article class="card" data-id="p1" data-material="PLA" data-name="Llavero geométrico" data-price="85" data-stock="5">
           <div class="shot teal">
             <svg viewBox="0 0 160 120" aria-hidden="true">
@@ -205,7 +207,7 @@
           </div>
         </article>
       </div>
-      <p class="empty" id="empty" hidden>No hay piezas con ese filamento en el destacado.</p>
+      <p class="empty" id="empty" role="status" hidden></p>
     </section>
 
     <section class="materials" id="materiales">
@@ -332,6 +334,7 @@
     </form>
   </dialog>
 
+  <script src="menu.js"></script>
   <script src="store.js"></script>
   <script src="app.js"></script>
 </body>

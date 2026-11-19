@@ -1,27 +1,14 @@
-const menuBtn = document.querySelector("#menuBtn");
-const menu = document.querySelector("#menu");
-
-menuBtn.addEventListener("click", () => {
-  const open = menu.classList.toggle("open");
-  menuBtn.setAttribute("aria-expanded", String(open));
-});
-
-menu.addEventListener("click", (event) => {
-  if (event.target.closest("a")) {
-    menu.classList.remove("open");
-    menuBtn.setAttribute("aria-expanded", "false");
-  }
-});
-
-const loginForm = document.querySelector("#loginForm");
-const registerForm = document.querySelector("#registro");
+const loginPanel = document.querySelector("#loginPanel");
+const registerPanel = document.querySelector("#registerPanel");
 const showLogin = document.querySelector("#showLogin");
 const showRegister = document.querySelector("#showRegister");
 
 function showAuth(mode) {
   const register = mode === "register";
-  loginForm.hidden = register;
-  registerForm.hidden = !register;
+  loginPanel.hidden = register;
+  registerPanel.hidden = !register;
+  showLogin.tabIndex = register ? -1 : 0;
+  showRegister.tabIndex = register ? 0 : -1;
   showLogin.classList.toggle("on", !register);
   showRegister.classList.toggle("on", register);
   showLogin.setAttribute("aria-selected", String(!register));
@@ -30,6 +17,15 @@ function showAuth(mode) {
 
 showLogin.addEventListener("click", () => showAuth("login"));
 showRegister.addEventListener("click", () => showAuth("register"));
+
+document.querySelector(".switch").addEventListener("keydown", (event) => {
+  const { key, target } = event;
+  if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
+  event.preventDefault();
+  const register = key === "End" || (key !== "Home" && target === showLogin);
+  showAuth(register ? "register" : "login");
+  (register ? showRegister : showLogin).focus();
+});
 window.addEventListener("hashchange", () => {
   showAuth(location.hash === "#registro" ? "register" : "login");
 });

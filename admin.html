@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body data-page="admin">
+  <a class="skip" href="#contenido">Saltar al contenido</a>
   <header class="nav scrolled" id="nav">
     <a class="brand" href="index.html">
       <span class="mark" aria-hidden="true">
@@ -21,11 +22,11 @@
       </span>
       <span>PrintLab <em>3D</em></span>
     </a>
-    <button class="menu-btn" id="menuBtn" aria-expanded="false" aria-controls="menu">
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu">
       <span></span><span></span><span></span>
       <span class="sr">Menú</span>
     </button>
-    <nav class="menu" id="menu">
+    <nav class="menu" id="menu" aria-label="Navegación principal">
       <a href="index.html#catalogo">Tienda</a>
       <a href="vendedor.html">Catálogo</a>
       <span id="sessionSlot" class="session-slot"></span>
@@ -34,7 +35,7 @@
     </nav>
   </header>
 
-  <main class="panel">
+  <main class="panel" id="contenido" tabindex="-1">
     <div class="panel-head">
       <div>
         <p class="eyebrow dark">Administración</p>
@@ -95,25 +96,20 @@
     </section>
 
     <section class="sheet">
-      <h2>Cuentas</h2>
-      <table class="accounts" id="userTable">
-        <thead>
-          <tr><th>Usuario</th><th>Acceso</th><th>Estado</th></tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <h2 id="accountsTitle">Cuentas</h2>
+      <div class="table-scroll" role="region" aria-labelledby="accountsTitle" tabindex="0">
+        <table class="accounts" id="userTable">
+          <thead>
+            <tr><th scope="col">Usuario</th><th scope="col">Acceso</th><th scope="col">Estado</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
+  <script src="menu.js"></script>
   <script src="store.js"></script>
   <script src="panel.js"></script>
-  <script>
-    const menuBtn = document.querySelector("#menuBtn");
-    const menu = document.querySelector("#menu");
-    menuBtn.addEventListener("click", () => {
-      const open = menu.classList.toggle("open");
-      menuBtn.setAttribute("aria-expanded", String(open));
-    });
-  </script>
 </body>
 </html>

@@ -1,8 +1,9 @@
-const menuBtn = document.querySelector("#menuBtn");
-const menu = document.querySelector("#menu");
 const nav = document.querySelector("#nav");
 const grid = document.querySelector("#grid");
 const empty = document.querySelector("#empty");
+const catalogMessage = document.querySelector("#catalogMessage");
+const retryCatalog = document.querySelector("#retryCatalog");
+const chips = document.querySelectorAll(".chip");
 const toast = document.querySelector("#toast");
 const cartCount = document.querySelector("#cartCount");
 const cartList = document.querySelector("#cartList");
@@ -42,8 +43,29 @@ async function loadCatalog() {
   const data = await response.json();
   if (token !== catalogToken) return;
   catalog = (data.products || []).map(asProduct);
+  grid.hidden = false;
+  catalogMessage.hidden = true;
+  retryCatalog.hidden = true;
   syncCatalog();
 }
+
+async function showCatalog() {
+  catalogMessage.textContent = "Cargando catálogo…";
+  retryCatalog.disabled = true;
+  try {
+    await loadCatalog();
+  } catch {
+    catalogMessage.textContent = "No se pudo cargar el catálogo.";
+    retryCatalog.hidden = false;
+  } finally {
+    retryCatalog.disabled = false;
+  }
+}
+
+retryCatalog.addEventListener("click", async () => {
+  await showCatalog();
+  if (retryCatalog.hidden) document.querySelector(".chip.on").focus();
+});
 
 PrintLab.mountSession();
 
@@ -131,7 +153,10 @@ function applyFilter() {
     card.classList.toggle("hide", !show);
     if (show) visible += 1;
   });
-  empty.hidden = visible !== 0;
+  empty.hidden = grid.hidden || visible !== 0;
+  empty.textContent = empty.hidden ? "" : filter === "todos"
+    ? "No hay piezas disponibles en este momento."
+    : "No hay piezas disponibles en " + filter + ".";
 }
 
 function syncCatalog() {
@@ -148,27 +173,18 @@ function syncCatalog() {
   applyFilter();
 }
 
-menuBtn.addEventListener("click", () => {
-  const open = menu.classList.toggle("open");
-  menuBtn.setAttribute("aria-expanded", String(open));
-});
-
-menu.addEventListener("click", (event) => {
-  if (event.target.closest("a")) {
-    menu.classList.remove("open");
-    menuBtn.setAttribute("aria-expanded", "false");
-  }
-});
-
 window.addEventListener("scroll", () => {
   nav.classList.toggle("scrolled", window.scrollY > 8);
 });
 
-document.querySelectorAll(".chip").forEach((chip) => {
+chips.forEach((chip) => {
   chip.addEventListener("click", () => {
-    document.querySelectorAll(".chip").forEach((item) => item.classList.remove("on"));
-    chip.classList.add("on");
     filter = chip.dataset.filter;
+    chips.forEach((item) => {
+      const active = item === chip;
+      item.classList.toggle("on", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
     applyFilter();
   });
 });
@@ -366,9 +382,9 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
   fileName.textContent = file ? file.name : "Ningún archivo elegido";
 });
 
-loadCatalog().catch(() => showToast("No se pudo cargar el catálogo."));
+showCatalog();
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
+  if (document.visibilityState === "visible" && !grid.hidden) {
     loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
   }
 });
