@@ -12,7 +12,8 @@ function publicRequest(row) {
     descripcion: row.description || "",
     usuario: row.username || "",
     archivo: row.reference_file || "",
-    estado: row.status
+    estado: row.status,
+    precio: row.quote_price == null ? null : Number(row.quote_price)
   };
 }
 
@@ -32,6 +33,10 @@ async function ensureRequestShape() {
       'en_proceso', 'completada', 'rechazada'
     ) NOT NULL DEFAULT 'pendiente'
   `);
+  const [price] = await pool.query("SHOW COLUMNS FROM custom_requests LIKE 'quote_price'");
+  if (price.length === 0) {
+    await pool.query("ALTER TABLE custom_requests ADD COLUMN quote_price DECIMAL(10,2) NULL AFTER status");
+  }
 }
 
 async function seedRequest() {
@@ -54,9 +59,22 @@ async function seedRequest() {
   );
 }
 
+async function listOwnRequests(req, res) {
+  const [rows] = await pool.execute(
+    `SELECT r.id, r.title, r.material, r.description, r.reference_file, r.status, r.quote_price, u.username
+     FROM custom_requests r
+     JOIN users u ON u.id = r.user_id
+     WHERE r.user_id = ?
+     ORDER BY r.id DESC`,
+    [req.session.user.id]
+  );
+  res.set("Cache-Control", "no-store");
+  res.json({ requests: rows.map(publicRequest) });
+}
+
 async function listRequests(req, res) {
   const [rows] = await pool.query(
-    `SELECT r.id, r.title, r.material, r.description, r.reference_file, r.status, u.username
+    `SELECT r.id, r.title, r.material, r.description, r.reference_file, r.status, r.quote_price, u.username
      FROM custom_requests r
      JOIN users u ON u.id = r.user_id
      ORDER BY r.id DESC`
@@ -87,7 +105,7 @@ async function createRequest(req, res) {
     [req.session.user.id, pieza, material, descripcion, archivo]
   );
   const [rows] = await pool.execute(
-    `SELECT r.id, r.title, r.material, r.description, r.reference_file, r.status, u.username
+    `SELECT r.id, r.title, r.material, r.description, r.reference_file, r.status, r.quote_price, u.username
      FROM custom_requests r
      JOIN users u ON u.id = r.user_id
      WHERE r.id = ?`,
@@ -102,9 +120,25 @@ async function updateRequestStatus(req, res) {
   if (!allowed.includes(estado)) {
     return res.status(400).json({ error: "Ese estado no está permitido." });
   }
+  const id = Number(req.params.id);
+  if (estado === "cotizada") {
+    const precio = Number(req.body.precio);
+    if (!Number.isFinite(precio) || precio < 0 || precio > 99999999.99) {
+      return res.status(400).json({ error: "Indica el precio de la cotización." });
+    }
+    const quote = Math.round(precio * 100) / 100;
+    const [result] = await pool.execute(
+      "UPDATE custom_requests SET status = ?, quote_price = ? WHERE id = ?",
+      [estado, quote, id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: "Solicitud no encontrada." });
+    }
+    return res.json({ ok: true, estado, precio: quote });
+  }
   const [result] = await pool.execute(
     "UPDATE custom_requests SET status = ? WHERE id = ?",
-    [estado, Number(req.params.id)]
+    [estado, id]
   );
   if (result.affectedRows === 0) {
     return res.status(404).json({ error: "Solicitud no encontrada." });
@@ -115,6 +149,7 @@ async function updateRequestStatus(req, res) {
 module.exports = {
   ensureRequestShape,
   seedRequest,
+  listOwnRequests,
   listRequests,
   createRequest,
   updateRequestStatus

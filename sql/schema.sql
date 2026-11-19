@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS custom_requests (
   material VARCHAR(20) NULL,
   reference_file VARCHAR(255),
   status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'en_proceso', 'completada', 'rechazada') NOT NULL DEFAULT 'pendiente',
+  quote_price DECIMAL(10,2) NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

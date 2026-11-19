@@ -66,7 +66,14 @@ async function main() {
   );
 
   const hidden = await request("/api/requests", { cookie: buyer.cookie });
-  check("comprador no lista las solicitudes", hidden.status === 403);
+  check("comprador no lista las solicitudes de todos", hidden.status === 403);
+
+  const mine = await request("/api/requests/mine", { cookie: buyer.cookie });
+  const own = (mine.data.requests || []).find((row) => row.id === item.id);
+  check(
+    "comprador ve sus solicitudes y el estado",
+    mine.status === 200 && own && own.estado === "pendiente" && own.pieza === pieza
+  );
 
   const seller = await login("vendedor", "vendedor123");
   const listed = await request("/api/requests", { cookie: seller.cookie });
@@ -80,12 +87,23 @@ async function main() {
   });
   check("vendedor no rechaza", rejected.status === 400);
 
-  const quoted = await request("/api/requests/" + item.id, {
+  const quotedWithoutPrice = await request("/api/requests/" + item.id, {
     method: "PATCH",
     cookie: seller.cookie,
     body: { estado: "cotizada" }
   });
-  check("vendedor marca cotizada", quoted.status === 200 && quoted.data.estado === "cotizada");
+  check("cotizar sin precio se rechaza", quotedWithoutPrice.status === 400);
+
+  const quoted = await request("/api/requests/" + item.id, {
+    method: "PATCH",
+    cookie: seller.cookie,
+    body: { estado: "cotizada", precio: 45.5 }
+  });
+  check("vendedor marca cotizada", quoted.status === 200 && quoted.data.estado === "cotizada" && quoted.data.precio === 45.5);
+
+  const priced = await request("/api/requests/mine", { cookie: buyer.cookie });
+  const quotedOwn = (priced.data.requests || []).find((row) => row.id === item.id);
+  check("el comprador ve el precio cotizado", quotedOwn && quotedOwn.precio === 45.5);
 
   const admin = await login("admin", "admin123");
   const closed = await request("/api/requests/" + item.id, {

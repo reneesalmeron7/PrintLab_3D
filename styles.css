@@ -193,7 +193,7 @@ h1 { font-size: clamp(2.4rem, 5vw, 4.4rem); max-width: 12ch; }
 .petg { background: #6366f1; }
 .abs { background: #f59e0b; }
 
-.catalog, .materials, .custom, .foot {
+.catalog, .materials, .custom, .mine, .foot {
   padding: 72px 6vw;
 }
 .section-head {
@@ -284,6 +284,17 @@ h2 { font-size: clamp(2rem, 3vw, 3rem); max-width: 16ch; }
   grid-template-columns: 1fr 1fr;
   gap: 36px;
   align-items: start;
+}
+.mine { background: var(--card); }
+.quote-price { display: grid; gap: 4px; min-width: 7.5rem; font-size: 0.82rem; font-weight: 700; }
+.quote-price input { width: 7.5rem; }
+.request-state {
+  flex: none;
+  font-weight: 800;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--teal-deep);
 }
 .custom { background: white; }
 .custom ol { margin: 18px 0 0; padding: 0; list-style: none; display: grid; gap: 14px; }

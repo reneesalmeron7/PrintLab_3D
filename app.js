@@ -80,6 +80,71 @@ retryCatalog.addEventListener("click", async () => {
 
 PrintLab.mountSession();
 
+const myRequestsSection = document.querySelector("#mis-solicitudes");
+const myRequests = document.querySelector("#myRequests");
+const requestStates = {
+  pendiente: "Pendiente",
+  cotizada: "Cotizada",
+  imprimiendo: "Imprimiendo",
+  lista: "Lista",
+  en_proceso: "En proceso",
+  completada: "Completada",
+  rechazada: "Rechazada"
+};
+
+function isBuyer() {
+  const current = PrintLab.session();
+  return !!current && (current.role === "comprador" || current.role === "cliente");
+}
+
+async function loadMyRequests() {
+  if (!myRequestsSection || !isBuyer()) {
+    if (myRequestsSection) myRequestsSection.hidden = true;
+    return;
+  }
+  myRequestsSection.hidden = false;
+  const response = await fetch("/api/requests/mine", { cache: "no-store", credentials: "include" });
+  const data = await response.json().catch(() => ({}));
+  myRequests.replaceChildren();
+  if (!response.ok) {
+    const note = document.createElement("p");
+    note.className = "form-note";
+    note.textContent = response.status === 401
+      ? "Entra de nuevo para ver tus solicitudes."
+      : "No se pudieron cargar tus solicitudes.";
+    myRequests.append(note);
+    return;
+  }
+  const items = data.requests || [];
+  if (items.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "form-note";
+    empty.textContent = "Todavía no has enviado solicitudes.";
+    myRequests.append(empty);
+    return;
+  }
+  for (const item of items) {
+    const row = document.createElement("article");
+    row.className = "row";
+    const copy = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = item.pieza;
+    copy.append(title);
+    const detail = [item.material, item.archivo].filter(Boolean).join(" · ");
+    if (detail) {
+      const meta = document.createElement("p");
+      meta.textContent = detail;
+      copy.append(meta);
+    }
+    const state = document.createElement("span");
+    state.className = "request-state";
+    const label = requestStates[item.estado] || item.estado;
+    state.textContent = item.precio == null ? label : label + " · " + money.format(item.precio);
+    row.append(copy, state);
+    myRequests.append(row);
+  }
+}
+
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
@@ -389,6 +454,7 @@ document.querySelector("#requestForm").addEventListener("submit", async (event) 
     "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";
   document.querySelector("#formFields").hidden = true;
   document.querySelector("#thanks").hidden = false;
+  loadMyRequests().catch(() => {});
 });
 
 document.querySelector("#again").addEventListener("click", () => {
@@ -404,9 +470,10 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
 });
 
 showCatalog();
+loadMyRequests().catch(() => {});
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && !grid.hidden) {
-    loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
-  }
+  if (document.visibilityState !== "visible") return;
+  if (!grid.hidden) loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+  if (myRequestsSection && !myRequestsSection.hidden) loadMyRequests().catch(() => {});
 });
 renderCart();
