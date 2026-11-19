@@ -7,6 +7,7 @@ const invoicesRoutes = require("./routes/invoices.routes");
 
 const app = express();
 const root = path.join(__dirname, "..");
+const pub  = path.join(root, "public");
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false }));
@@ -28,20 +29,21 @@ app.use("/api", catalogRoutes);
 app.use("/api", invoicesRoutes);
 
 // Proteger vistas restringidas por rol en el servidor
-app.get("/admin.html", (req, res, next) => {
-  if (!req.session || !req.session.user || req.session.user.role !== "admin") {
+app.get(["/admin.html", "/admin"], (req, res, next) => {
+  if (!req.session?.user || req.session.user.role !== "admin") {
     return res.redirect("/acceso.html");
   }
   next();
 });
 
-app.get("/vendedor.html", (req, res, next) => {
-  if (!req.session || !req.session.user || !["vendedor", "admin"].includes(req.session.user.role)) {
+app.get(["/vendedor.html", "/vendedor"], (req, res, next) => {
+  if (!req.session?.user || !["vendedor", "admin"].includes(req.session.user.role)) {
     return res.redirect("/acceso.html");
   }
   next();
 });
 
+// Bloquear acceso a carpetas internas del servidor
 app.use((req, res, next) => {
   const blocked = req.path.startsWith("/src")
     || req.path.startsWith("/sql")
@@ -56,10 +58,13 @@ app.use((req, res, next) => {
   next();
 });
 
-// Servir carpeta public/ (JS, CSS, assets del frontend)
-app.use("/public", express.static(path.join(root, "public"), { dotfiles: "ignore" }));
-// Servir raíz del proyecto (HTML pages)
-app.use(express.static(root, { dotfiles: "ignore", index: "index.html" }));
+// Servir carpeta public/ como raíz web (HTML, JS, CSS, assets)
+app.use(express.static(pub, { dotfiles: "ignore", index: "index.html" }));
+
+// Fallback: redirigir rutas desconocidas al index
+app.use((req, res) => {
+  res.sendFile(path.join(pub, "index.html"));
+});
 
 app.use((err, req, res, next) => {
   console.error(err);
