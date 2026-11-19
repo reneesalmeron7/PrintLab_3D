@@ -109,6 +109,12 @@ const PrintLab = (function () {
     return "index.html";
   }
 
+  function saveSession(user) {
+    const current = { username: user.username, role: user.role };
+    write(SESSION, current);
+    return current;
+  }
+
   function login(username, password) {
     const found = users().find((user) => user.username === username && user.password === password);
     if (!found) return null;
@@ -120,6 +126,7 @@ const PrintLab = (function () {
 
   function logout() {
     localStorage.removeItem(SESSION);
+    return fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => {});
   }
 
   function register(username, email, password) {
@@ -170,6 +177,24 @@ const PrintLab = (function () {
       write(SESSION, current);
     }
     return user;
+  }
+
+  function recordInvoice(buyer, lines) {
+    const saved = invoices();
+    const invoice = {
+      id: "f" + Date.now(),
+      buyer: buyer,
+      created: new Date().toLocaleString("es-MX"),
+      items: lines.map((line) => ({
+        name: line.name,
+        price: line.price,
+        qty: line.qty
+      })),
+      total: lines.reduce((sum, line) => sum + line.price * line.qty, 0)
+    };
+    saved.unshift(invoice);
+    write(INVOICES, saved);
+    return invoice;
   }
 
   function checkout(buyer, lines) {
@@ -244,8 +269,14 @@ const PrintLab = (function () {
     out.className = "ghost";
     out.textContent = "Salir";
     out.addEventListener("click", () => {
-      logout();
-      location.href = "index.html";
+      logout().finally(() => {
+        const here = location.pathname.endsWith("/index.html") || location.pathname.endsWith("/");
+        if (here) {
+          location.reload();
+          return;
+        }
+        location.href = "index.html";
+      });
     });
     slot.append(name, out);
   }
@@ -257,6 +288,7 @@ const PrintLab = (function () {
     invoices: invoices,
     session: session,
     home: home,
+    saveSession: saveSession,
     login: login,
     logout: logout,
     register: register,
@@ -266,6 +298,7 @@ const PrintLab = (function () {
     addRequest: addRequest,
     setRequestStatus: setRequestStatus,
     updateUser: updateUser,
+    recordInvoice: recordInvoice,
     checkout: checkout,
     guard: guard,
     mountSession: mountSession

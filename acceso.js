@@ -35,37 +35,65 @@ window.addEventListener("hashchange", () => {
 });
 showAuth(location.hash === "#registro" ? "register" : "login");
 
-const active = PrintLab.session();
-if (active) location.replace(PrintLab.home(active.role));
+fetch("/api/auth/me", { credentials: "include" })
+  .then((response) => (response.ok ? response.json() : null))
+  .then((data) => {
+    if (!data || !data.user) return;
+    PrintLab.saveSession(data.user);
+    location.replace(PrintLab.home(data.user.role));
+  })
+  .catch(() => {});
 
-document.querySelector("#loginForm").addEventListener("submit", (event) => {
+async function postAuth(path, body) {
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await response.json().catch(() => ({}));
+  return { ok: response.ok, data };
+}
+
+document.querySelector("#loginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const user = PrintLab.login(String(data.get("usuario")).trim(), String(data.get("clave")));
   const note = document.querySelector("#loginNote");
-  if (user === "inactive") {
-    note.textContent = "Esta cuenta está desactivada.";
-    return;
+  note.textContent = "";
+  try {
+    const result = await postAuth("/api/auth/login", {
+      username: String(data.get("usuario")).trim(),
+      password: String(data.get("clave"))
+    });
+    if (!result.ok || !result.data.user) {
+      note.textContent = result.data.error || "Usuario o contraseña incorrectos.";
+      return;
+    }
+    PrintLab.saveSession(result.data.user);
+    location.href = PrintLab.home(result.data.user.role);
+  } catch (err) {
+    note.textContent = "No se pudo contactar al servidor.";
   }
-  if (!user) {
-    note.textContent = "Usuario o contraseña incorrectos.";
-    return;
-  }
-  location.href = PrintLab.home(user.role);
 });
 
-document.querySelector("#registro").addEventListener("submit", (event) => {
+document.querySelector("#registro").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
-  const user = PrintLab.register(
-    String(data.get("usuario")).trim(),
-    String(data.get("email")).trim(),
-    String(data.get("clave"))
-  );
   const note = document.querySelector("#registerNote");
-  if (!user) {
-    note.textContent = "Ese usuario ya existe.";
-    return;
+  note.textContent = "";
+  try {
+    const result = await postAuth("/api/auth/register", {
+      username: String(data.get("usuario")).trim(),
+      email: String(data.get("email")).trim(),
+      password: String(data.get("clave"))
+    });
+    if (!result.ok || !result.data.user) {
+      note.textContent = result.data.error || "Ese usuario ya existe.";
+      return;
+    }
+    PrintLab.saveSession(result.data.user);
+    location.href = PrintLab.home(result.data.user.role);
+  } catch (err) {
+    note.textContent = "No se pudo contactar al servidor.";
   }
-  location.href = PrintLab.home(user.role);
 });

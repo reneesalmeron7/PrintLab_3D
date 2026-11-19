@@ -50,8 +50,18 @@ if (session) {
     photoPreview.removeAttribute("src");
   }
 
-  function paintProducts() {
-    const items = PrintLab.products();
+  let productToken = 0;
+
+  async function loadProducts() {
+    const response = await fetch("/api/products", { cache: "no-store" });
+    const data = await response.json();
+    return data.products || [];
+  }
+
+  async function paintProducts() {
+    const token = ++productToken;
+    const items = await loadProducts();
+    if (token !== productToken) return;
     productList.replaceChildren();
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -87,7 +97,7 @@ if (session) {
       edit.className = "text-link";
       edit.textContent = "Editar";
       edit.addEventListener("click", () => {
-        productForm.elements.id.value = product.id;
+        productForm.elements.id.value = String(product.id);
         productForm.elements.nombre.value = product.name;
         productForm.elements.descripcion.value = product.description;
         productForm.elements.precio.value = product.price;
@@ -111,9 +121,9 @@ if (session) {
       remove.type = "button";
       remove.className = "danger";
       remove.textContent = "Quitar";
-      remove.addEventListener("click", () => {
-        PrintLab.removeProduct(product.id);
-        if (productForm.elements.id.value === product.id) resetForm();
+      remove.addEventListener("click", async () => {
+        await fetch("/api/products/" + product.id, { method: "DELETE", credentials: "include" });
+        if (String(productForm.elements.id.value) === String(product.id)) resetForm();
         paintProducts();
       });
       actions.append(edit, remove);
@@ -201,28 +211,37 @@ if (session) {
     });
   }
 
-  function paintUsers() {
+  async function paintUsers() {
     const userTable = document.querySelector("#userTable");
     if (!userTable) return;
     const body = userTable.querySelector("tbody");
+    const response = await fetch("/api/auth/users", { credentials: "include" });
+    const data = await response.json().catch(() => ({}));
     body.replaceChildren();
-    PrintLab.users().forEach((user) => {
+    (data.users || []).forEach((user) => {
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.textContent = user.username;
       const access = document.createElement("td");
       const role = document.createElement("select");
       role.setAttribute("aria-label", "Acceso de " + user.username);
-      ["cliente", "vendedor", "admin"].forEach((value) => {
+      ["comprador", "vendedor", "admin"].forEach((value) => {
         const option = document.createElement("option");
         option.value = value;
         option.textContent = value;
         if (value === user.role) option.selected = true;
         role.append(option);
       });
-      role.addEventListener("change", () => {
-        PrintLab.updateUser(user.username, { role: role.value });
+      role.addEventListener("change", async () => {
+        const result = await fetch("/api/auth/users/" + user.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: role.value })
+        });
+        if (!result.ok) return;
         if (user.username === session.username && role.value !== "admin") {
+          PrintLab.saveSession({ username: user.username, role: role.value });
           location.href = PrintLab.home(role.value);
         }
       });
@@ -232,12 +251,17 @@ if (session) {
       toggle.type = "button";
       toggle.className = user.active === false ? "text-link" : "danger";
       toggle.textContent = user.active === false ? "Activar" : "Desactivar";
-      toggle.addEventListener("click", () => {
+      toggle.addEventListener("click", async () => {
         if (user.username === session.username) {
           productNote.textContent = "No puedes desactivar la cuenta con la que entraste.";
           return;
         }
-        PrintLab.updateUser(user.username, { active: user.active === false });
+        await fetch("/api/auth/users/" + user.id, {
+          method: "PATCH",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: user.active === false })
+        });
         paintUsers();
       });
       state.append(toggle);
@@ -265,10 +289,9 @@ if (session) {
     const data = new FormData(productForm);
     const id = String(data.get("id") || "");
     const file = photoInput.files[0];
-    readPhoto(file).then((image) => {
+    readPhoto(file).then(async (image) => {
       const changes = {
         name: String(data.get("nombre")).trim(),
-        category: "Catálogo",
         material: data.get("material"),
         time: String(data.get("tiempo")).trim(),
         price: Number(data.get("precio")),
@@ -276,18 +299,23 @@ if (session) {
         description: String(data.get("descripcion")).trim()
       };
       if (image) changes.image = image;
-      if (id) {
-        const current = PrintLab.products().find((item) => item.id === id);
-        if (current && !image) changes.image = current.image || "";
-        if (current) changes.category = current.category || "Catálogo";
-        PrintLab.updateProduct(id, changes);
-        productNote.textContent = "Cambios guardados.";
-      } else {
-        changes.image = image;
-        changes.id = "p" + Date.now();
-        PrintLab.addProduct(changes);
-        productNote.textContent = "La pieza ya está en el catálogo.";
+      if (!id) changes.category = "Catálogo";
+      const response = await fetch(id ? "/api/products/" + id : "/api/products", {
+        method: id ? "PATCH" : "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes)
+      });
+      const saved = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        productNote.textContent = "La sesión expiró. Entra de nuevo para guardar.";
+        return;
       }
+      if (!response.ok) {
+        productNote.textContent = saved.error || "No se pudo guardar la pieza.";
+        return;
+      }
+      productNote.textContent = id ? "Cambios guardados." : "La pieza ya está en el catálogo.";
       resetForm();
       paintProducts();
     });
