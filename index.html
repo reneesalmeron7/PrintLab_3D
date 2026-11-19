@@ -279,13 +279,68 @@
     <ul id="cartList"></ul>
     <p class="total">Total <span id="cartTotal">$0</span></p>
     <p id="cartNotice" class="form-note" role="status"></p>
-    <button class="solid full" type="button" id="checkout" disabled>Generar factura</button>
+    <button class="solid full" type="button" id="checkout" aria-haspopup="dialog" disabled>Ir al pago</button>
   </div>
+
+  <dialog class="payment" id="payment" aria-labelledby="paymentTitle" aria-describedby="paymentDescription">
+    <h2 id="paymentTitle">Finalizar compra</h2>
+    <p id="paymentDescription">Modo demostración. No se realizará ningún cargo.</p>
+    <ul class="payment-summary" id="paymentItems" aria-label="Resumen de la compra"></ul>
+    <p class="total">Total a pagar <span id="paymentTotal"></span></p>
+
+    <form id="paymentForm">
+      <fieldset id="paymentMethods">
+        <legend>Método de pago</legend>
+        <label class="payment-option">
+          <input type="radio" name="method" value="tarjeta" required>
+          <strong>Tarjeta</strong>
+        </label>
+        <label class="payment-option">
+          <input type="radio" name="method" value="transferencia" required>
+          <strong>Transferencia</strong>
+        </label>
+        <div class="payment-details" data-payment-details="tarjeta" hidden>
+          <button class="ghost" type="button">Rellenar tarjeta</button>
+          <div class="payment-fields">
+            <label>Titular
+              <input type="text" data-payment-field="titular" readonly>
+            </label>
+            <label>Vencimiento
+              <input type="text" data-payment-field="vencimiento" readonly>
+            </label>
+            <label class="payment-wide">Número de tarjeta
+              <input type="text" data-payment-field="numero" readonly>
+            </label>
+          </div>
+        </div>
+        <div class="payment-details" data-payment-details="transferencia" hidden>
+          <button class="ghost" type="button">Rellenar transferencia</button>
+          <div class="payment-fields">
+            <label>Banco
+              <input type="text" data-payment-field="banco" readonly>
+            </label>
+            <label>Beneficiario
+              <input type="text" data-payment-field="beneficiario" readonly>
+            </label>
+            <label class="payment-wide">Número de cuenta
+              <input type="text" data-payment-field="cuenta" readonly>
+            </label>
+          </div>
+        </div>
+      </fieldset>
+      <p class="form-note payment-notice" id="paymentNotice" role="status"></p>
+      <div class="payment-actions">
+        <button class="ghost" type="button" id="backToCart">Volver al carrito</button>
+        <button class="solid" type="submit" id="confirmPayment" disabled>Confirmar pago</button>
+      </div>
+    </form>
+  </dialog>
 
   <dialog class="invoice" id="invoice" aria-labelledby="invoiceTitle">
     <p class="eyebrow dark">PrintLab 3D</p>
     <h2 id="invoiceTitle"></h2>
     <p id="invoiceDetails"></p>
+    <p class="form-note" id="invoicePayment"></p>
     <table>
       <caption class="sr">Detalle de la compra</caption>
       <thead>
