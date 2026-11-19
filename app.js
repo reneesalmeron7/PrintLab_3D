@@ -321,23 +321,11 @@ function restoreCartAfterLogin() {
 }
 
 function showInvoice(invoice, method) {
-  document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
-  document.querySelector("#invoiceDetails").textContent =
-    invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
+  InvoiceView.render(invoiceDialog, invoice);
   document.querySelector("#invoicePayment").textContent = "Pago simulado con " + method + ".";
-  const body = document.querySelector("#invoiceItems");
-  body.replaceChildren();
-  for (const item of invoice.items) {
-    const row = body.insertRow();
-    for (const value of [item.name, item.qty, money.format(item.price), money.format(item.price * item.qty)]) {
-      row.insertCell().textContent = value;
-    }
-  }
-  document.querySelector("#invoiceTotal").textContent = money.format(invoice.total);
+  document.querySelector("#printInvoice").href = "factura.html?id=" + encodeURIComponent(invoice.id);
   invoiceDialog.showModal();
 }
-
-document.querySelector("#printInvoice").addEventListener("click", () => window.print());
 
 async function refreshCart() {
   await loadCatalog();
