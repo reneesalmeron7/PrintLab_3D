@@ -4,12 +4,20 @@ const session = require("express-session");
 const authRoutes = require("./routes/auth.routes");
 const catalogRoutes = require("./routes/catalog.routes");
 const invoicesRoutes = require("./routes/invoices.routes");
+const requestsRoutes = require("./routes/requests.routes");
 
 const app = express();
 const root = path.join(__dirname, "..");
 const pub  = path.join(root, "public");
 
-app.use(express.json({ limit: "2mb" }));
+const jsonDefault = express.json({ limit: "2mb" });
+const jsonLarge = express.json({ limit: "15mb" });
+app.use((req, res, next) => {
+  if (req.path === "/api/requests" && req.method === "POST") {
+    return jsonLarge(req, res, next);
+  }
+  return jsonDefault(req, res, next);
+});
 app.use(express.urlencoded({ extended: false }));
 app.use(session({
   name: "printlab.sid",
@@ -27,6 +35,7 @@ app.use(session({
 app.use("/api/auth", authRoutes);
 app.use("/api", catalogRoutes);
 app.use("/api", invoicesRoutes);
+app.use("/api", requestsRoutes);
 
 // Proteger vistas restringidas por rol en el servidor
 app.get(["/admin.html", "/admin"], (req, res, next) => {
@@ -48,6 +57,7 @@ app.use((req, res, next) => {
   const blocked = req.path.startsWith("/src")
     || req.path.startsWith("/sql")
     || req.path.startsWith("/scripts")
+    || req.path.startsWith("/uploads")
     || req.path.startsWith("/node_modules")
     || req.path.includes(".env")
     || req.path.endsWith(".yml")
@@ -67,6 +77,9 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
+  if (err && err.type === "entity.too.large") {
+    return res.status(413).json({ error: "El archivo supera el tamaño máximo permitido (10 MB)." });
+  }
   console.error(err);
   res.status(500).json({ error: "Error del servidor." });
 });

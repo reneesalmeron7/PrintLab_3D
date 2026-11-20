@@ -57,9 +57,14 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 CREATE TABLE IF NOT EXISTS custom_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
+  piece_name VARCHAR(120) NOT NULL DEFAULT '',
+  material ENUM('PLA', 'PETG', 'ABS') NOT NULL DEFAULT 'PLA',
   description TEXT NOT NULL,
   reference_file VARCHAR(255),
-  status ENUM('pendiente', 'en_proceso', 'completada', 'rechazada') DEFAULT 'pendiente',
+  stored_file VARCHAR(255) NULL,
+  status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'rechazada') NOT NULL DEFAULT 'pendiente',
+  seller_note TEXT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

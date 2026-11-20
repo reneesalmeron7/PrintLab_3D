@@ -248,7 +248,7 @@
             <span id="fileName">Ningún archivo elegido</span>
           </label>
           <p class="form-note" id="requestNotice" role="status" style="margin: 0.75rem 0;"></p>
-          <button class="solid full" type="submit">Enviar solicitud</button>
+          <button class="solid full" type="submit" id="requestSubmit">Enviar solicitud</button>
         </div>
         <div class="thanks" id="thanks" hidden>
           <p class="eyebrow dark">Solicitud lista</p>
@@ -257,6 +257,19 @@
           <button class="ghost" type="button" id="again">Enviar otra</button>
         </div>
       </form>
+    </section>
+
+    <section class="my-requests-wrap" id="myRequestsSection" hidden>
+      <div class="sheet">
+        <div class="requests-head">
+          <div>
+            <p class="eyebrow dark">Seguimiento</p>
+            <h2>Mis solicitudes</h2>
+          </div>
+          <button class="ghost" type="button" id="refreshMyRequests">Actualizar</button>
+        </div>
+        <div id="myRequestsList" class="request-grid"></div>
+      </div>
     </section>
   </main>
 

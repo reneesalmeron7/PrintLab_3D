@@ -34,6 +34,19 @@ if (session) {
   const photoPreview = document.querySelector("#photoPreview");
   const vendorStates = ["pendiente", "cotizada", "imprimiendo", "lista"];
   const adminStates = vendorStates.concat("rechazada");
+  const requestFilters = document.querySelector("#requestFilters");
+  const requestsSummary = document.querySelector("#requestsSummary");
+  let allRequests = [];
+  let activeRequestFilter = "todos";
+  let requestFeedback = "";
+
+  const statusLabels = {
+    pendiente: "Pendiente",
+    cotizada: "Cotizada",
+    imprimiendo: "Imprimiendo",
+    lista: "Lista",
+    rechazada: "Rechazada"
+  };
 
   function readPhoto(file) {
     return new Promise((resolve) => {
@@ -151,49 +164,207 @@ if (session) {
     });
   }
 
-  function paintRequests() {
-    const items = PrintLab.requests();
+  if (requestFilters) {
+    requestFilters.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        activeRequestFilter = chip.dataset.status || "todos";
+        requestFeedback = "";
+        requestFilters.querySelectorAll(".chip").forEach((btn) => {
+          const active = btn === chip;
+          btn.classList.toggle("on", active);
+          btn.setAttribute("aria-pressed", String(active));
+        });
+        renderRequests();
+      });
+    });
+  }
+
+  function formatDate(value) {
+    if (!value) return "";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString("es-SV");
+  }
+
+  function renderRequests(errorMessage) {
     requestList.replaceChildren();
-    if (items.length === 0) {
+
+    if (errorMessage) {
+      const err = document.createElement("p");
+      err.className = "form-note";
+      err.textContent = errorMessage;
+      requestList.append(err);
+      if (requestsSummary) requestsSummary.textContent = "";
+      return;
+    }
+
+    const filtered = activeRequestFilter === "todos"
+      ? allRequests
+      : allRequests.filter((item) => item.status === activeRequestFilter);
+
+    if (requestsSummary) {
+      const countText = activeRequestFilter === "todos"
+        ? `${allRequests.length} solicitud(es) en total`
+        : `Mostrando ${filtered.length} de ${allRequests.length} (filtro: ${statusLabels[activeRequestFilter] || activeRequestFilter})`;
+      requestsSummary.textContent = requestFeedback ? `${countText} · ${requestFeedback}` : countText;
+    }
+
+    if (filtered.length === 0) {
       const empty = document.createElement("p");
       empty.className = "form-note";
-      empty.textContent = "No hay solicitudes.";
+      empty.textContent = activeRequestFilter === "todos"
+        ? "No hay solicitudes registradas."
+        : `No hay solicitudes en estado "${statusLabels[activeRequestFilter] || activeRequestFilter}".`;
       requestList.append(empty);
       return;
     }
-    items.forEach((request) => {
-      const row = document.createElement("article");
-      row.className = "row";
-      const copy = document.createElement("div");
+
+    filtered.forEach((request) => {
+      const card = document.createElement("article");
+      card.className = "request-card";
+
+      const head = document.createElement("div");
+      head.className = "request-card-head";
       const title = document.createElement("strong");
-      title.textContent = request.pieza;
-      const meta = document.createElement("p");
-      meta.textContent = request.material + " · pedido por " + request.usuario;
-      const text = document.createElement("p");
-      text.textContent = request.descripcion;
-      copy.append(title, meta, text);
-      if (request.archivo) {
-        const file = document.createElement("p");
-        file.textContent = "Archivo: " + request.archivo;
-        copy.append(file);
+      title.textContent = `#${request.id} · ${request.piece}`;
+      const badge = document.createElement("span");
+      badge.className = `status-badge status-${request.status}`;
+      badge.textContent = statusLabels[request.status] || request.status;
+      head.append(title, badge);
+
+      const meta = document.createElement("div");
+      meta.className = "request-meta";
+      const userPill = document.createElement("span");
+      userPill.className = "user-pill";
+      userPill.textContent = "Usuario: @" + request.username;
+      const mat = document.createElement("span");
+      mat.textContent = "Material: " + request.material;
+      meta.append(userPill, mat);
+      if (request.createdAt) {
+        const when = document.createElement("span");
+        when.textContent = "Recibida: " + formatDate(request.createdAt);
+        meta.append(when);
       }
+
+      const desc = document.createElement("p");
+      desc.className = "request-desc";
+      desc.textContent = request.description;
+
+      card.append(head, meta, desc);
+
+      if (request.fileName) {
+        const fileWrap = document.createElement("div");
+        fileWrap.className = "request-file";
+        if (request.hasFile) {
+          const link = document.createElement("a");
+          link.className = "ghost file-download";
+          link.href = `/api/requests/${request.id}/file`;
+          link.setAttribute("download", request.fileName);
+          link.textContent = "⬇ Descargar archivo: " + request.fileName;
+          fileWrap.append(link);
+        } else {
+          const muted = document.createElement("span");
+          muted.className = "request-file-muted";
+          muted.textContent = "Archivo de referencia: " + request.fileName + " (sin binario adjunto)";
+          fileWrap.append(muted);
+        }
+        card.append(fileWrap);
+      }
+
+      const controls = document.createElement("div");
+      controls.className = "request-controls";
+
       const states = (page === "admin" ? adminStates : vendorStates).slice();
-      if (states.indexOf(request.estado) === -1) states.push(request.estado);
+      if (states.indexOf(request.status) === -1) states.push(request.status);
+
       const select = document.createElement("select");
-      select.setAttribute("aria-label", "Estado de " + request.pieza);
+      select.setAttribute("aria-label", "Estado de " + request.piece);
       states.forEach((state) => {
         const option = document.createElement("option");
         option.value = state;
-        option.textContent = state;
-        if (state === request.estado) option.selected = true;
+        option.textContent = statusLabels[state] || state;
+        if (state === request.status) option.selected = true;
         select.append(option);
       });
-      select.addEventListener("change", () => {
-        PrintLab.setRequestStatus(request.id, select.value);
+
+      const noteInput = document.createElement("input");
+      noteInput.type = "text";
+      noteInput.className = "request-note-input";
+      noteInput.maxLength = 500;
+      noteInput.placeholder = "Mensaje o cotización para @" + request.username + " (opcional)";
+      noteInput.value = request.sellerNote || "";
+      noteInput.setAttribute("aria-label", "Nota para " + request.username);
+
+      const saveBtn = document.createElement("button");
+      saveBtn.type = "button";
+      saveBtn.className = "solid save-request-btn";
+      saveBtn.textContent = "Guardar";
+
+      const feedback = document.createElement("p");
+      feedback.className = "request-saved-note";
+      feedback.setAttribute("role", "status");
+      if (request.notifiedAt) {
+        feedback.textContent = `Último envío a @${request.username}: ${formatDate(request.notifiedAt)}`;
+      }
+
+      saveBtn.addEventListener("click", async () => {
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Guardando…";
+        feedback.classList.remove("error");
+        feedback.textContent = "";
+
+        try {
+          const response = await fetch(`/api/requests/${request.id}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              status: select.value,
+              sellerNote: noteInput.value.trim()
+            })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            feedback.classList.add("error");
+            feedback.textContent = data.error || "No se pudo guardar la solicitud.";
+            return;
+          }
+
+          const idx = allRequests.findIndex((item) => item.id === request.id);
+          if (idx !== -1 && data.request) {
+            allRequests[idx] = data.request;
+          }
+          requestFeedback = `Solicitud #${request.id} guardada y enviada a @${request.username}`;
+          renderRequests();
+        } catch {
+          feedback.classList.add("error");
+          feedback.textContent = "Error de conexión al guardar.";
+        } finally {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Guardar";
+        }
       });
-      row.append(copy, select);
-      requestList.append(row);
+
+      controls.append(select, noteInput, saveBtn);
+      card.append(controls, feedback);
+
+      requestList.append(card);
     });
+  }
+
+  async function paintRequests() {
+    try {
+      const response = await fetch("/api/requests", {
+        credentials: "include",
+        cache: "no-store"
+      });
+      if (!response.ok) throw new Error();
+      const data = await response.json();
+      allRequests = data.requests || [];
+      renderRequests();
+    } catch {
+      renderRequests("No se pudieron cargar las solicitudes del servidor.");
+    }
   }
 
   async function paintInvoices() {

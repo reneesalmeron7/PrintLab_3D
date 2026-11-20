@@ -370,38 +370,224 @@ function interceptIfGuest(event) {
   }
 }
 
-document.querySelector("#requestForm").addEventListener("submit", (event) => {
+const requestNotice = document.querySelector("#requestNotice");
+const requestSubmit = document.querySelector("#requestSubmit");
+const myRequestsSection = document.querySelector("#myRequestsSection");
+const myRequestsList = document.querySelector("#myRequestsList");
+const refreshMyRequests = document.querySelector("#refreshMyRequests");
+
+const requestStatusLabels = {
+  pendiente: "Pendiente",
+  cotizada: "Cotizada",
+  imprimiendo: "Imprimiendo",
+  lista: "Lista",
+  rechazada: "Rechazada"
+};
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function loadMyRequests() {
+  if (!myRequestsSection || !myRequestsList) return;
+  const current = PrintLab.session();
+  if (!current) {
+    myRequestsSection.hidden = true;
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/requests", {
+      credentials: "include",
+      cache: "no-store"
+    });
+    if (response.status === 401) {
+      myRequestsSection.hidden = true;
+      return;
+    }
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    const mine = (data.requests || []).filter((item) => item.username === current.username);
+
+    myRequestsSection.hidden = false;
+    myRequestsList.replaceChildren();
+
+    if (mine.length === 0) {
+      const emptyNote = document.createElement("p");
+      emptyNote.className = "form-note";
+      emptyNote.textContent = "Todavía no has enviado solicitudes personalizadas.";
+      myRequestsList.append(emptyNote);
+      return;
+    }
+
+    mine.forEach((request) => {
+      const card = document.createElement("article");
+      card.className = "request-card";
+
+      const head = document.createElement("div");
+      head.className = "request-card-head";
+      const title = document.createElement("strong");
+      title.textContent = `#${request.id} · ${request.piece}`;
+      const badge = document.createElement("span");
+      badge.className = `status-badge status-${request.status}`;
+      badge.textContent = requestStatusLabels[request.status] || request.status;
+      head.append(title, badge);
+
+      const meta = document.createElement("div");
+      meta.className = "request-meta";
+      const userPill = document.createElement("span");
+      userPill.className = "user-pill";
+      userPill.textContent = "Usuario: @" + request.username;
+      const mat = document.createElement("span");
+      mat.textContent = "Material: " + request.material;
+      meta.append(userPill, mat);
+      if (request.createdAt) {
+        const when = document.createElement("span");
+        when.textContent = "Enviada: " + new Date(request.createdAt).toLocaleString("es-SV");
+        meta.append(when);
+      }
+
+      const desc = document.createElement("p");
+      desc.className = "request-desc";
+      desc.textContent = request.description;
+
+      card.append(head, meta, desc);
+
+      if (request.fileName) {
+        const fileWrap = document.createElement("div");
+        fileWrap.className = "request-file";
+        if (request.hasFile) {
+          const link = document.createElement("a");
+          link.className = "ghost file-download";
+          link.href = `/api/requests/${request.id}/file`;
+          link.setAttribute("download", request.fileName);
+          link.textContent = "⬇ Descargar archivo: " + request.fileName;
+          fileWrap.append(link);
+        } else {
+          const muted = document.createElement("span");
+          muted.className = "request-file-muted";
+          muted.textContent = "Archivo: " + request.fileName;
+          fileWrap.append(muted);
+        }
+        card.append(fileWrap);
+      }
+
+      if (request.sellerNote || request.notifiedAt) {
+        const reply = document.createElement("div");
+        reply.className = "seller-reply";
+        const heading = document.createElement("strong");
+        const updatedLabel = request.notifiedAt
+          ? " · " + new Date(request.notifiedAt).toLocaleString("es-SV")
+          : "";
+        heading.textContent = `Actualización del taller (${requestStatusLabels[request.status] || request.status})${updatedLabel}`;
+        const body = document.createElement("p");
+        body.textContent = request.sellerNote || `Tu solicitud cambió a estado "${requestStatusLabels[request.status] || request.status}".`;
+        reply.append(heading, body);
+        card.append(reply);
+      }
+
+      myRequestsList.append(card);
+    });
+  } catch {
+    myRequestsSection.hidden = false;
+    myRequestsList.replaceChildren();
+    const err = document.createElement("p");
+    err.className = "form-note";
+    err.textContent = "No se pudieron cargar tus solicitudes.";
+    myRequestsList.append(err);
+  }
+}
+
+if (refreshMyRequests) {
+  refreshMyRequests.addEventListener("click", () => loadMyRequests());
+}
+
+document.querySelector("#requestForm").addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  // Verificar sesión activa con el servidor antes de aceptar la solicitud
   const current = PrintLab.session();
   if (!current) {
     authRequestDialog.showModal();
     return;
   }
 
-  const data = new FormData(event.currentTarget);
-  const pieza = data.get("pieza");
-  const material = data.get("material");
-  const archivo = data.get("referencia");
-  PrintLab.addRequest({
-    id: "s" + Date.now(),
-    pieza: String(pieza).trim(),
-    material: material,
-    descripcion: String(data.get("descripcion")).trim(),
-    usuario: current.username,
-    archivo: archivo && archivo.name ? archivo.name : "",
-    estado: "pendiente"
-  });
-  document.querySelector("#thanksTitle").textContent = pieza;
-  document.querySelector("#thanksText").textContent =
-    "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";
-  document.querySelector("#formFields").hidden = true;
-  document.querySelector("#thanks").hidden = false;
+  const form = event.currentTarget;
+  const data = new FormData(form);
+  const piece = String(data.get("pieza") || "").trim();
+  const material = String(data.get("material") || "").trim();
+  const description = String(data.get("descripcion") || "").trim();
+  const fileInput = form.querySelector('input[name="referencia"]');
+  const selectedFile = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+  if (requestNotice) requestNotice.textContent = "";
+
+  let filePayload = null;
+  if (selectedFile) {
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      if (requestNotice) requestNotice.textContent = "El archivo supera el límite máximo de 10 MB.";
+      return;
+    }
+    try {
+      const encoded = await readFileAsDataUrl(selectedFile);
+      filePayload = { name: selectedFile.name, data: encoded };
+    } catch {
+      if (requestNotice) requestNotice.textContent = "No se pudo leer el archivo seleccionado.";
+      return;
+    }
+  }
+
+  if (requestSubmit) {
+    requestSubmit.disabled = true;
+    requestSubmit.textContent = "Enviando…";
+  }
+
+  try {
+    const response = await fetch("/api/requests", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        piece,
+        material,
+        description,
+        file: filePayload
+      })
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+      authRequestDialog.showModal();
+      return;
+    }
+    if (!response.ok) {
+      if (requestNotice) requestNotice.textContent = result.error || "No se pudo enviar la solicitud.";
+      return;
+    }
+
+    document.querySelector("#thanksTitle").textContent = piece;
+    document.querySelector("#thanksText").textContent =
+      "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";
+    document.querySelector("#formFields").hidden = true;
+    document.querySelector("#thanks").hidden = false;
+    loadMyRequests();
+  } catch {
+    if (requestNotice) requestNotice.textContent = "No se pudo conectar con el servidor.";
+  } finally {
+    if (requestSubmit) {
+      requestSubmit.disabled = false;
+      requestSubmit.textContent = "Enviar solicitud";
+    }
+  }
 });
 
 document.querySelector("#again").addEventListener("click", () => {
   document.querySelector("#requestForm").reset();
+  if (requestNotice) requestNotice.textContent = "";
   fileName.textContent = "Ningún archivo elegido";
   document.querySelector("#thanks").hidden = true;
   document.querySelector("#formFields").hidden = false;
@@ -413,9 +599,11 @@ document.querySelector('input[name="referencia"]').addEventListener("change", (e
 });
 
 showCatalog();
+loadMyRequests();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && !grid.hidden) {
     loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+    loadMyRequests();
   }
 });
 renderCart();

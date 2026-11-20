@@ -137,16 +137,16 @@ async function seed() {
   const [currentReqs] = await pool.query("SELECT COUNT(*) AS total FROM custom_requests");
   if (Number(currentReqs[0].total) === 0) {
     const sampleReqs = [
-      [userIds["cliente"], "Soporte personalizado para micrófono HyperX con agarre de 35mm para escritorio.", "soporte_mic.stl", "en_proceso"],
-      [userIds["marcos_dev"] || userIds["cliente"], "Adaptador de riel DIN para módulo ESP32 con terminales expuestos.", "din_esp32.obj", "completada"],
-      [userIds["lucia_art"] || userIds["cliente"], "Molde geométrico en forma de corazón para vaciado de velas aromáticas.", "molde_corazon.3mf", "pendiente"],
-      [userIds["cliente"], "Engranaje helicoidal de 48 dientes con chaveta de 4 mm para máquina de coser.", "engranaje_48d.stl", "rechazada"]
+      [userIds["cliente"], "Soporte para micrófono HyperX", "PETG", "Soporte personalizado para micrófono HyperX con agarre de 35mm para escritorio.", "soporte_mic.stl", "imprimiendo", "Cotización aprobada ($16.00). Imprimiendo en PETG negro."],
+      [userIds["marcos_dev"] || userIds["cliente"], "Adaptador riel DIN ESP32", "ABS", "Adaptador de riel DIN para módulo ESP32 con terminales expuestos.", "din_esp32.obj", "lista", "Tu pieza ya está lista para retirar en el taller."],
+      [userIds["lucia_art"] || userIds["cliente"], "Molde geométrico corazón", "PLA", "Molde geométrico en forma de corazón para vaciado de velas aromáticas.", "molde_corazon.3mf", "pendiente", null],
+      [userIds["cliente"], "Engranaje helicoidal 48 dientes", "ABS", "Engranaje helicoidal de 48 dientes con chaveta de 4 mm para máquina de coser.", "engranaje_48d.stl", "cotizada", "Cotización: $14.50 en ABS reforzado. Tiempo estimado: 2 h."]
     ];
 
-    for (const [uId, desc, file, status] of sampleReqs) {
+    for (const [uId, piece, material, desc, file, status, note] of sampleReqs) {
       await pool.execute(
-        "INSERT INTO custom_requests (user_id, description, reference_file, status) VALUES (?, ?, ?, ?)",
-        [uId, desc, file, status]
+        "INSERT INTO custom_requests (user_id, piece_name, material, description, reference_file, status, seller_note, notified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [uId, piece, material, desc, file, status, note, note ? new Date() : null]
       );
     }
     console.log("Solicitudes de impresión insertadas.");
