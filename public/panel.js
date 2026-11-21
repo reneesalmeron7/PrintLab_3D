@@ -43,10 +43,13 @@ if (session) {
   const statusLabels = {
     pendiente: "Pendiente",
     cotizada: "Cotizada",
+    en_cola: "En cola de pedidos",
     imprimiendo: "Imprimiendo",
     lista: "Lista",
+    cancelada: "Cancelada",
     rechazada: "Rechazada"
   };
+  const moneyFmt = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 
   function readPhoto(file) {
     return new Promise((resolve) => {
@@ -265,35 +268,202 @@ if (session) {
         } else {
           const muted = document.createElement("span");
           muted.className = "request-file-muted";
-          muted.textContent = "Archivo de referencia: " + request.fileName + " (sin binario adjunto)";
+          muted.textContent = "Archivo de referencia: " + request.fileName;
           fileWrap.append(muted);
         }
         card.append(fileWrap);
       }
 
+      // Último movimiento visible en la tarjeta
+      const history = Array.isArray(request.history) ? request.history : [];
+      const latestEntry = history[0] || null;
+      const previousEntries = history.slice(1);
+
+      if (request.quotePrice !== null || request.sellerNote || request.notifiedAt) {
+        const latestBox = document.createElement("div");
+        latestBox.className = "request-latest";
+
+        const latestTop = document.createElement("div");
+        latestTop.className = "request-latest-head";
+        if (request.quotePrice !== null) {
+          const pricePill = document.createElement("span");
+          pricePill.className = "price-pill";
+          pricePill.textContent = "Cotización: " + moneyFmt.format(request.quotePrice);
+          latestTop.append(pricePill);
+        }
+        if (request.notifiedAt) {
+          const updatedMeta = document.createElement("span");
+          updatedMeta.className = "request-latest-date";
+          const who = latestEntry && latestEntry.changedBy ? ` por @${latestEntry.changedBy}` : "";
+          updatedMeta.textContent = `Último cambio${who} · ${formatDate(request.notifiedAt)}`;
+          latestTop.append(updatedMeta);
+        }
+        if (latestTop.childNodes.length > 0) latestBox.append(latestTop);
+
+        if (request.sellerNote) {
+          const latestComment = document.createElement("p");
+          latestComment.className = "request-latest-comment";
+          latestComment.textContent = request.sellerNote;
+          latestBox.append(latestComment);
+        }
+        card.append(latestBox);
+      }
+
+      // Enlace tipo texto "Historial del pedido" que despliega lo anterior
+      const historyBlock = document.createElement("div");
+      historyBlock.className = "history-block";
+
+      const historyToggle = document.createElement("button");
+      historyToggle.type = "button";
+      historyToggle.className = "history-toggle";
+      historyToggle.setAttribute("aria-expanded", "false");
+      const prevCountLabel = previousEntries.length > 0 ? ` (${previousEntries.length})` : "";
+      historyToggle.textContent = `▸ Historial del pedido${prevCountLabel}`;
+
+      const historyList = document.createElement("ul");
+      historyList.className = "history-list";
+      historyList.hidden = true;
+
+      if (previousEntries.length === 0) {
+        const emptyHist = document.createElement("li");
+        emptyHist.className = "history-empty";
+        emptyHist.textContent = "No hay movimientos anteriores.";
+        historyList.append(emptyHist);
+      } else {
+        previousEntries.forEach((entry) => {
+          const li = document.createElement("li");
+          li.className = "history-item";
+          const line = document.createElement("div");
+          line.className = "history-item-head";
+
+          const st = document.createElement("span");
+          st.className = `status-badge status-${entry.status}`;
+          st.textContent = statusLabels[entry.status] || entry.status;
+          line.append(st);
+
+          if (entry.quotePrice !== null) {
+            const pr = document.createElement("strong");
+            pr.textContent = moneyFmt.format(entry.quotePrice);
+            line.append(pr);
+          }
+
+          const info = document.createElement("span");
+          info.className = "history-item-meta";
+          info.textContent = `@${entry.changedBy} · ${formatDate(entry.createdAt)}`;
+          line.append(info);
+          li.append(line);
+
+          if (entry.comment) {
+            const c = document.createElement("p");
+            c.className = "history-item-comment";
+            c.textContent = entry.comment;
+            li.append(c);
+          }
+          historyList.append(li);
+        });
+      }
+
+      historyToggle.addEventListener("click", () => {
+        const opening = historyList.hidden;
+        historyList.hidden = !opening;
+        historyToggle.setAttribute("aria-expanded", String(opening));
+        historyToggle.textContent = `${opening ? "▾" : "▸"} Historial del pedido${prevCountLabel}`;
+      });
+
+      historyBlock.append(historyToggle, historyList);
+      card.append(historyBlock);
+
+      // Aviso de estado respecto a confirmación/cancelación del cliente
+      if (request.status === "cotizada") {
+        const waitBanner = document.createElement("p");
+        waitBanner.className = "request-banner waiting";
+        waitBanner.textContent = `⏳ Esperando aceptación de @${request.username}: después de enviar la cotización, el cliente debe aceptarla antes de iniciar la impresión.`;
+        card.append(waitBanner);
+      } else if (request.status === "en_cola") {
+        const okBanner = document.createElement("p");
+        okBanner.className = "request-banner accepted";
+        okBanner.textContent = `✓ Cotización aceptada por @${request.username} · El pedido está en cola de pedidos y ya puedes pasarlo a Imprimiendo.`;
+        card.append(okBanner);
+      } else if (request.status === "cancelada") {
+        const cancelBanner = document.createElement("p");
+        cancelBanner.className = "request-banner cancelled";
+        cancelBanner.textContent = `✕ Esta solicitud fue cancelada por @${request.username}.`;
+        card.append(cancelBanner);
+        requestList.append(card);
+        return;
+      }
+
+      // Controles de edición
+      const controlsWrap = document.createElement("div");
+      controlsWrap.className = "request-controls-wrap";
+
       const controls = document.createElement("div");
       controls.className = "request-controls";
 
       const states = (page === "admin" ? adminStates : vendorStates).slice();
-      if (states.indexOf(request.status) === -1) states.push(request.status);
+      if (states.indexOf(request.status) === -1) states.unshift(request.status);
+
+      const waitingClientAcceptance = request.status === "cotizada";
 
       const select = document.createElement("select");
       select.setAttribute("aria-label", "Estado de " + request.piece);
       states.forEach((state) => {
         const option = document.createElement("option");
         option.value = state;
-        option.textContent = statusLabels[state] || state;
+        const blockedUntilAccept = waitingClientAcceptance && (state === "imprimiendo" || state === "lista");
+        option.textContent = blockedUntilAccept
+          ? `${statusLabels[state] || state} (esperando aceptación)`
+          : (statusLabels[state] || state);
+        if (blockedUntilAccept) option.disabled = true;
         if (state === request.status) option.selected = true;
         select.append(option);
       });
 
-      const noteInput = document.createElement("input");
-      noteInput.type = "text";
+      // Campo numérico de precio (visible cuando el estado es "cotizada")
+      const priceWrap = document.createElement("label");
+      priceWrap.className = "price-field";
+      priceWrap.hidden = select.value !== "cotizada";
+      const priceSymbol = document.createElement("span");
+      priceSymbol.textContent = "$";
+      const priceInput = document.createElement("input");
+      priceInput.type = "number";
+      priceInput.min = "0";
+      priceInput.step = "0.01";
+      priceInput.inputMode = "decimal";
+      priceInput.placeholder = "Precio de cotización";
+      priceInput.setAttribute("aria-label", "Precio de cotización para " + request.piece);
+      if (request.quotePrice !== null) priceInput.value = String(request.quotePrice);
+      priceWrap.append(priceSymbol, priceInput);
+
+      // Toggle de comentario opcional ("Añadir comentario")
+      const commentToggle = document.createElement("button");
+      commentToggle.type = "button";
+      commentToggle.className = "comment-toggle";
+      commentToggle.textContent = "+ Añadir comentario";
+
+      const commentBox = document.createElement("div");
+      commentBox.className = "comment-box";
+      commentBox.hidden = true;
+      const noteInput = document.createElement("textarea");
+      noteInput.rows = 2;
       noteInput.className = "request-note-input";
       noteInput.maxLength = 500;
-      noteInput.placeholder = "Mensaje o cotización para @" + request.username + " (opcional)";
-      noteInput.value = request.sellerNote || "";
-      noteInput.setAttribute("aria-label", "Nota para " + request.username);
+      noteInput.placeholder = "Escribe un comentario opcional para @" + request.username + "...";
+      noteInput.setAttribute("aria-label", "Comentario opcional para " + request.username);
+      commentBox.append(noteInput);
+
+      commentToggle.addEventListener("click", () => {
+        const opening = commentBox.hidden;
+        commentBox.hidden = !opening;
+        commentToggle.textContent = opening ? "− Ocultar comentario" : "+ Añadir comentario";
+        if (opening) noteInput.focus();
+      });
+
+      select.addEventListener("change", () => {
+        const isQuote = select.value === "cotizada";
+        priceWrap.hidden = !isQuote;
+        if (isQuote) priceInput.focus();
+      });
 
       const saveBtn = document.createElement("button");
       saveBtn.type = "button";
@@ -303,25 +473,37 @@ if (session) {
       const feedback = document.createElement("p");
       feedback.className = "request-saved-note";
       feedback.setAttribute("role", "status");
-      if (request.notifiedAt) {
-        feedback.textContent = `Último envío a @${request.username}: ${formatDate(request.notifiedAt)}`;
-      }
 
       saveBtn.addEventListener("click", async () => {
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Guardando…";
         feedback.classList.remove("error");
         feedback.textContent = "";
+
+        const payload = {
+          status: select.value,
+          sellerNote: commentBox.hidden ? "" : noteInput.value.trim()
+        };
+
+        if (select.value === "cotizada") {
+          const raw = priceInput.value.trim();
+          const num = Number(raw);
+          if (!raw || !Number.isFinite(num) || num < 0) {
+            feedback.classList.add("error");
+            feedback.textContent = "Ingresa un precio numérico válido para la cotización.";
+            priceInput.focus();
+            return;
+          }
+          payload.quotePrice = num;
+        }
+
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Guardando…";
 
         try {
           const response = await fetch(`/api/requests/${request.id}`, {
             method: "PATCH",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: select.value,
-              sellerNote: noteInput.value.trim()
-            })
+            body: JSON.stringify(payload)
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
@@ -345,8 +527,9 @@ if (session) {
         }
       });
 
-      controls.append(select, noteInput, saveBtn);
-      card.append(controls, feedback);
+      controls.append(select, priceWrap, commentToggle, saveBtn);
+      controlsWrap.append(controls, commentBox, feedback);
+      card.append(controlsWrap);
 
       requestList.append(card);
     });

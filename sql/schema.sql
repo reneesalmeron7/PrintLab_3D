@@ -62,11 +62,23 @@ CREATE TABLE IF NOT EXISTS custom_requests (
   description TEXT NOT NULL,
   reference_file VARCHAR(255),
   stored_file VARCHAR(255) NULL,
-  status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'rechazada') NOT NULL DEFAULT 'pendiente',
+  status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL DEFAULT 'pendiente',
+  quote_price DECIMAL(10,2) NULL,
   seller_note TEXT NULL,
   notified_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS custom_request_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  request_id INT NOT NULL,
+  changed_by VARCHAR(50) NOT NULL,
+  status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL,
+  quote_price DECIMAL(10,2) NULL,
+  comment TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (request_id) REFERENCES custom_requests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 INSERT INTO categories (name, description) VALUES

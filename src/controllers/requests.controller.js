@@ -5,6 +5,7 @@ const pool = require("../config/db");
 
 const UPLOADS_DIR = path.join(__dirname, "../../uploads/requests");
 const MATERIALS = ["PLA", "PETG", "ABS"];
+const ALL_STATES = ["pendiente", "cotizada", "en_cola", "imprimiendo", "lista", "cancelada", "rechazada"];
 const VENDOR_STATES = ["pendiente", "cotizada", "imprimiendo", "lista"];
 const ADMIN_STATES = ["pendiente", "cotizada", "imprimiendo", "lista", "rechazada"];
 const ALLOWED_EXTS = new Set([".stl", ".obj", ".3mf", ".png", ".jpg", ".jpeg", ".webp"]);
@@ -26,7 +27,24 @@ function hasStoredFileOnDisk(storedFile) {
   return fs.existsSync(path.join(UPLOADS_DIR, safeName));
 }
 
-function publicRequest(row) {
+function formatPrice(val) {
+  if (val === null || val === undefined || val === "") return null;
+  const num = Number(val);
+  return Number.isFinite(num) ? Math.round(num * 100) / 100 : null;
+}
+
+function publicHistoryRow(h) {
+  return {
+    id: h.id,
+    changedBy: h.changed_by || "taller",
+    status: h.status,
+    quotePrice: formatPrice(h.quote_price),
+    comment: h.comment || "",
+    createdAt: h.created_at
+  };
+}
+
+function publicRequest(row, historyRows = []) {
   return {
     id: row.id,
     piece: row.piece_name || ("Solicitud #" + row.id),
@@ -36,9 +54,11 @@ function publicRequest(row) {
     fileName: row.reference_file || "",
     hasFile: hasStoredFileOnDisk(row.stored_file),
     status: row.status || "pendiente",
+    quotePrice: formatPrice(row.quote_price),
     sellerNote: row.seller_note || "",
     createdAt: row.created_at,
-    notifiedAt: row.notified_at || null
+    notifiedAt: row.notified_at || null,
+    history: historyRows.map(publicHistoryRow)
   };
 }
 
@@ -57,8 +77,11 @@ async function ensureRequestsSchema() {
   if (!colMap.has("stored_file")) {
     await pool.query("ALTER TABLE custom_requests ADD COLUMN stored_file VARCHAR(255) NULL AFTER reference_file");
   }
+  if (!colMap.has("quote_price")) {
+    await pool.query("ALTER TABLE custom_requests ADD COLUMN quote_price DECIMAL(10,2) NULL AFTER status");
+  }
   if (!colMap.has("seller_note")) {
-    await pool.query("ALTER TABLE custom_requests ADD COLUMN seller_note TEXT NULL AFTER status");
+    await pool.query("ALTER TABLE custom_requests ADD COLUMN seller_note TEXT NULL AFTER quote_price");
   }
   if (!colMap.has("notified_at")) {
     await pool.query("ALTER TABLE custom_requests ADD COLUMN notified_at TIMESTAMP NULL DEFAULT NULL AFTER seller_note");
@@ -66,29 +89,104 @@ async function ensureRequestsSchema() {
 
   const statusCol = colMap.get("status");
   const statusType = statusCol ? String(statusCol.Type).toLowerCase() : "";
-  if (!statusType.includes("'cotizada'") || statusType.includes("'en_proceso'") || statusType.includes("'completada'")) {
+  if (
+    !statusType.includes("'cotizada'")
+    || !statusType.includes("'en_cola'")
+    || !statusType.includes("'cancelada'")
+    || statusType.includes("'aceptada'")
+    || statusType.includes("'en_proceso'")
+    || statusType.includes("'completada'")
+  ) {
     await pool.query(
-      "ALTER TABLE custom_requests MODIFY status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'rechazada', 'en_proceso', 'completada') NOT NULL DEFAULT 'pendiente'"
+      "ALTER TABLE custom_requests MODIFY status ENUM('pendiente', 'cotizada', 'aceptada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada', 'en_proceso', 'completada') NOT NULL DEFAULT 'pendiente'"
     );
     await pool.query("UPDATE custom_requests SET status = 'imprimiendo' WHERE status = 'en_proceso'");
     await pool.query("UPDATE custom_requests SET status = 'lista' WHERE status = 'completada'");
+    await pool.query("UPDATE custom_requests SET status = 'en_cola' WHERE status = 'aceptada'");
     await pool.query(
-      "ALTER TABLE custom_requests MODIFY status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'rechazada') NOT NULL DEFAULT 'pendiente'"
+      "ALTER TABLE custom_requests MODIFY status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL DEFAULT 'pendiente'"
     );
   }
 
-  // Rellenar nombres de pieza vacíos en registros antiguos
   await pool.query(
     `UPDATE custom_requests
      SET piece_name = LEFT(TRIM(SUBSTRING_INDEX(description, '.', 1)), 80)
      WHERE piece_name = '' AND description IS NOT NULL AND description <> ''`
   );
+
+  // Tabla de historial de movimientos por solicitud
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS custom_request_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      request_id INT NOT NULL,
+      changed_by VARCHAR(50) NOT NULL,
+      status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL,
+      quote_price DECIMAL(10,2) NULL,
+      comment TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (request_id) REFERENCES custom_requests(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB
+  `);
+
+  const [histCols] = await pool.query("SHOW COLUMNS FROM custom_request_history LIKE 'status'");
+  const histStatusType = histCols[0] ? String(histCols[0].Type).toLowerCase() : "";
+  if (!histStatusType.includes("'en_cola'") || !histStatusType.includes("'cancelada'") || histStatusType.includes("'aceptada'")) {
+    await pool.query(
+      "ALTER TABLE custom_request_history MODIFY status ENUM('pendiente', 'cotizada', 'aceptada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL"
+    );
+    await pool.query("UPDATE custom_request_history SET status = 'en_cola' WHERE status = 'aceptada'");
+    await pool.query(
+      "ALTER TABLE custom_request_history MODIFY status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL"
+    );
+  }
+
+  // Backfill de historial inicial para solicitudes que aún no tengan registro en historial
+  const [missingHistory] = await pool.query(`
+    SELECT r.id, r.status, r.quote_price, r.seller_note, r.created_at, r.notified_at, u.username
+    FROM custom_requests r
+    JOIN users u ON u.id = r.user_id
+    LEFT JOIN custom_request_history h ON h.request_id = r.id
+    WHERE h.id IS NULL
+  `);
+
+  for (const row of missingHistory) {
+    await pool.execute(
+      `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment, created_at)
+       VALUES (?, ?, 'pendiente', NULL, 'Solicitud enviada', ?)`,
+      [row.id, row.username, row.created_at]
+    );
+    if (row.status !== "pendiente" || row.seller_note || row.quote_price !== null) {
+      await pool.execute(
+        `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment, created_at)
+         VALUES (?, 'taller', ?, ?, ?, ?)`,
+        [row.id, row.status, row.quote_price, row.seller_note || null, row.notified_at || row.created_at]
+      );
+    }
+  }
+}
+
+async function historyForRequests(requestIds) {
+  const map = new Map();
+  if (!requestIds.length) return map;
+  const placeholders = requestIds.map(() => "?").join(",");
+  const [rows] = await pool.execute(
+    `SELECT id, request_id, changed_by, status, quote_price, comment, created_at
+     FROM custom_request_history
+     WHERE request_id IN (${placeholders})
+     ORDER BY id DESC`,
+    requestIds
+  );
+  for (const row of rows) {
+    if (!map.has(row.request_id)) map.set(row.request_id, []);
+    map.get(row.request_id).push(row);
+  }
+  return map;
 }
 
 async function requestById(id) {
   const [rows] = await pool.execute(
     `SELECT r.id, r.user_id, r.piece_name, r.material, r.description,
-            r.reference_file, r.stored_file, r.status, r.seller_note,
+            r.reference_file, r.stored_file, r.status, r.quote_price, r.seller_note,
             r.created_at, r.notified_at, u.username
      FROM custom_requests r
      JOIN users u ON u.id = r.user_id
@@ -112,7 +210,7 @@ async function listRequests(req, res) {
     params.push(user.id);
   }
 
-  if (statusFilter && statusFilter !== "todos" && ADMIN_STATES.includes(statusFilter)) {
+  if (statusFilter && statusFilter !== "todos" && ALL_STATES.includes(statusFilter)) {
     conditions.push("r.status = ?");
     params.push(statusFilter);
   }
@@ -120,7 +218,7 @@ async function listRequests(req, res) {
   const whereClause = conditions.length > 0 ? "WHERE " + conditions.join(" AND ") : "";
   const [rows] = await pool.execute(
     `SELECT r.id, r.user_id, r.piece_name, r.material, r.description,
-            r.reference_file, r.stored_file, r.status, r.seller_note,
+            r.reference_file, r.stored_file, r.status, r.quote_price, r.seller_note,
             r.created_at, r.notified_at, u.username
      FROM custom_requests r
      JOIN users u ON u.id = r.user_id
@@ -129,8 +227,12 @@ async function listRequests(req, res) {
     params
   );
 
+  const histMap = await historyForRequests(rows.map((r) => r.id));
+
   res.set("Cache-Control", "no-store");
-  res.json({ requests: rows.map(publicRequest) });
+  res.json({
+    requests: rows.map((row) => publicRequest(row, histMap.get(row.id) || []))
+  });
 }
 
 async function createRequest(req, res) {
@@ -185,8 +287,15 @@ async function createRequest(req, res) {
     [req.session.user.id, piece, material, description, referenceFile, storedFile]
   );
 
+  await pool.execute(
+    `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment)
+     VALUES (?, ?, 'pendiente', NULL, 'Solicitud enviada')`,
+    [created.insertId, req.session.user.username]
+  );
+
   const saved = await requestById(created.insertId);
-  res.status(201).json({ request: publicRequest(saved) });
+  const histMap = await historyForRequests([created.insertId]);
+  res.status(201).json({ request: publicRequest(saved, histMap.get(created.insertId) || []) });
 }
 
 async function updateRequest(req, res) {
@@ -200,26 +309,124 @@ async function updateRequest(req, res) {
     return res.status(404).json({ error: "Solicitud no encontrada." });
   }
 
-  const allowedStates = req.session.user.role === "admin" ? ADMIN_STATES : VENDOR_STATES;
+  if (existing.status === "cancelada") {
+    return res.status(409).json({ error: "Esta solicitud fue cancelada por el cliente y no puede modificarse." });
+  }
+
+  const allowedStates = (req.session.user.role === "admin" ? ADMIN_STATES : VENDOR_STATES).slice();
+  // Si ya está en cola de pedidos (aceptada por el cliente), permitir guardar un comentario manteniéndola ahí
+  if (existing.status === "en_cola") allowedStates.push("en_cola");
+
   const nextStatus = req.body?.status !== undefined ? String(req.body.status).trim() : existing.status;
 
   if (!allowedStates.includes(nextStatus)) {
     return res.status(400).json({ error: "Estado no permitido para tu rol." });
   }
 
+  if (existing.status === "cotizada" && ["imprimiendo", "lista"].includes(nextStatus)) {
+    return res.status(409).json({
+      error: "El cliente debe aceptar la cotización antes de pasar el pedido a impresión."
+    });
+  }
+
+  let nextPrice = formatPrice(existing.quote_price);
+  let historyPrice = null;
+
+  if (nextStatus === "cotizada") {
+    const rawPrice = req.body?.quotePrice;
+    const parsedPrice = Number(rawPrice);
+    if (rawPrice === undefined || rawPrice === null || rawPrice === "" || !Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ error: "Ingresa un precio numérico válido para la cotización." });
+    }
+    nextPrice = Math.round(parsedPrice * 100) / 100;
+    historyPrice = nextPrice;
+  } else if (req.body?.quotePrice !== undefined && req.body?.quotePrice !== null && req.body?.quotePrice !== "") {
+    const parsedPrice = Number(req.body.quotePrice);
+    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+      return res.status(400).json({ error: "El precio ingresado no es válido." });
+    }
+    nextPrice = Math.round(parsedPrice * 100) / 100;
+    historyPrice = nextPrice;
+  }
+
   const sellerNote = req.body?.sellerNote !== undefined
     ? String(req.body.sellerNote || "").trim().slice(0, 500)
-    : (existing.seller_note || "");
+    : "";
 
   await pool.execute(
     `UPDATE custom_requests
-     SET status = ?, seller_note = ?, notified_at = NOW()
+     SET status = ?, quote_price = ?, seller_note = ?, notified_at = NOW()
      WHERE id = ?`,
-    [nextStatus, sellerNote || null, id]
+    [nextStatus, nextPrice, sellerNote || null, id]
+  );
+
+  await pool.execute(
+    `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment)
+     VALUES (?, ?, ?, ?, ?)`,
+    [id, req.session.user.username, nextStatus, historyPrice, sellerNote || null]
   );
 
   const updated = await requestById(id);
-  res.json({ request: publicRequest(updated) });
+  const histMap = await historyForRequests([id]);
+  res.json({ request: publicRequest(updated, histMap.get(id) || []) });
+}
+
+async function respondToRequest(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: "ID de solicitud inválido." });
+  }
+
+  const existing = await requestById(id);
+  if (!existing) {
+    return res.status(404).json({ error: "Solicitud no encontrada." });
+  }
+
+  const user = req.session.user;
+  if (existing.user_id !== user.id) {
+    return res.status(403).json({ error: "Solo el titular de la solicitud puede realizar esta acción." });
+  }
+
+  const action = String(req.body?.action || "").trim().toLowerCase();
+  if (action !== "accept" && action !== "cancel") {
+    return res.status(400).json({ error: "Acción no válida." });
+  }
+
+  if (action === "accept") {
+    if (existing.status !== "cotizada") {
+      return res.status(409).json({ error: "Solo puedes aceptar una solicitud cuando ya está cotizada." });
+    }
+    await pool.execute(
+      `UPDATE custom_requests
+       SET status = 'en_cola', seller_note = NULL, notified_at = NOW()
+       WHERE id = ?`,
+      [id]
+    );
+    await pool.execute(
+      `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment)
+       VALUES (?, ?, 'en_cola', ?, 'Cotización aceptada por el cliente — pasó a cola de pedidos')`,
+      [id, user.username, formatPrice(existing.quote_price)]
+    );
+  } else {
+    if (!["pendiente", "cotizada"].includes(existing.status)) {
+      return res.status(409).json({ error: "Esta solicitud ya no se puede cancelar en su estado actual." });
+    }
+    await pool.execute(
+      `UPDATE custom_requests
+       SET status = 'cancelada', seller_note = NULL, notified_at = NOW()
+       WHERE id = ?`,
+      [id]
+    );
+    await pool.execute(
+      `INSERT INTO custom_request_history (request_id, changed_by, status, quote_price, comment)
+       VALUES (?, ?, 'cancelada', NULL, 'Solicitud cancelada por el cliente')`,
+      [id, user.username]
+    );
+  }
+
+  const updated = await requestById(id);
+  const histMap = await historyForRequests([id]);
+  res.json({ request: publicRequest(updated, histMap.get(id) || []) });
 }
 
 async function downloadRequestFile(req, res) {
@@ -266,5 +473,6 @@ module.exports = {
   listRequests,
   createRequest,
   updateRequest,
+  respondToRequest,
   downloadRequestFile
 };

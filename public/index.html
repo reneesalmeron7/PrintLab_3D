@@ -335,6 +335,16 @@
     </div>
   </dialog>
 
+  <dialog class="invoice" id="confirmActionDialog" aria-labelledby="confirmActionTitle">
+    <p class="eyebrow dark">Confirmar acción</p>
+    <h2 id="confirmActionTitle">¿Confirmar?</h2>
+    <p id="confirmActionText"></p>
+    <div class="invoice-actions" style="margin-top: 1.5rem; justify-content: flex-end; gap: 8px;">
+      <button class="ghost" type="button" id="cancelConfirmAction">Volver</button>
+      <button class="solid" type="button" id="okConfirmAction">Confirmar</button>
+    </div>
+  </dialog>
+
   <script src="menu.js"></script>
   <script src="store.js"></script>
   <script src="app.js"></script>

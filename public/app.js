@@ -379,10 +379,44 @@ const refreshMyRequests = document.querySelector("#refreshMyRequests");
 const requestStatusLabels = {
   pendiente: "Pendiente",
   cotizada: "Cotizada",
+  en_cola: "En cola de pedidos",
   imprimiendo: "Imprimiendo",
   lista: "Lista",
+  cancelada: "Cancelada",
   rechazada: "Rechazada"
 };
+
+const confirmActionDialog = document.querySelector("#confirmActionDialog");
+const confirmActionTitle = document.querySelector("#confirmActionTitle");
+const confirmActionText = document.querySelector("#confirmActionText");
+const cancelConfirmAction = document.querySelector("#cancelConfirmAction");
+const okConfirmAction = document.querySelector("#okConfirmAction");
+
+function askConfirmAction({ title, message, confirmLabel }) {
+  if (!confirmActionDialog) {
+    return Promise.resolve(window.confirm(message));
+  }
+  return new Promise((resolve) => {
+    confirmActionTitle.textContent = title;
+    confirmActionText.textContent = message;
+    okConfirmAction.textContent = confirmLabel || "Confirmar";
+
+    function cleanup(result) {
+      okConfirmAction.removeEventListener("click", onOk);
+      cancelConfirmAction.removeEventListener("click", onCancel);
+      confirmActionDialog.removeEventListener("cancel", onCancel);
+      if (confirmActionDialog.open) confirmActionDialog.close();
+      resolve(result);
+    }
+    function onOk() { cleanup(true); }
+    function onCancel() { cleanup(false); }
+
+    okConfirmAction.addEventListener("click", onOk);
+    cancelConfirmAction.addEventListener("click", onCancel);
+    confirmActionDialog.addEventListener("cancel", onCancel);
+    confirmActionDialog.showModal();
+  });
+}
 
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -477,7 +511,7 @@ async function loadMyRequests() {
         card.append(fileWrap);
       }
 
-      if (request.sellerNote || request.notifiedAt) {
+      if (request.quotePrice !== null || request.sellerNote || request.notifiedAt) {
         const reply = document.createElement("div");
         reply.className = "seller-reply";
         const heading = document.createElement("strong");
@@ -485,10 +519,166 @@ async function loadMyRequests() {
           ? " · " + new Date(request.notifiedAt).toLocaleString("es-SV")
           : "";
         heading.textContent = `Actualización del taller (${requestStatusLabels[request.status] || request.status})${updatedLabel}`;
-        const body = document.createElement("p");
-        body.textContent = request.sellerNote || `Tu solicitud cambió a estado "${requestStatusLabels[request.status] || request.status}".`;
-        reply.append(heading, body);
+        reply.append(heading);
+        if (request.quotePrice !== null) {
+          const priceLine = document.createElement("p");
+          priceLine.style.fontWeight = "800";
+          priceLine.textContent = "Precio cotizado: " + money.format(request.quotePrice);
+          reply.append(priceLine);
+        }
+        if (request.sellerNote) {
+          const body = document.createElement("p");
+          body.textContent = request.sellerNote;
+          reply.append(body);
+        } else if (request.status === "en_cola") {
+          const body = document.createElement("p");
+          body.textContent = "✓ Cotización aceptada. Tu pedido ya está en cola de pedidos y pronto pasará a impresión.";
+          reply.append(body);
+        } else if (request.status === "cancelada") {
+          const body = document.createElement("p");
+          body.textContent = "Cancelaste esta solicitud.";
+          reply.append(body);
+        } else if (request.quotePrice === null) {
+          const body = document.createElement("p");
+          body.textContent = `Tu solicitud cambió a estado "${requestStatusLabels[request.status] || request.status}".`;
+          reply.append(body);
+        }
         card.append(reply);
+      }
+
+      // Acciones del cliente: aceptar cotización y/o cancelar solicitud
+      if (request.status === "pendiente" || request.status === "cotizada") {
+        const actionsWrap = document.createElement("div");
+        actionsWrap.className = "client-actions";
+        const actionNote = document.createElement("p");
+        actionNote.className = "request-saved-note error";
+        actionNote.setAttribute("role", "status");
+
+        async function sendClientAction(action, triggerBtn, loadingLabel) {
+          actionNote.textContent = "";
+          const buttons = actionsWrap.querySelectorAll("button");
+          buttons.forEach((b) => { b.disabled = true; });
+          const originalText = triggerBtn.textContent;
+          triggerBtn.textContent = loadingLabel;
+          try {
+            const res = await fetch(`/api/requests/${request.id}/respond`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              actionNote.textContent = data.error || "No se pudo completar la acción.";
+              buttons.forEach((b) => { b.disabled = false; });
+              triggerBtn.textContent = originalText;
+              return;
+            }
+            actionsWrap.remove();
+            showToast(action === "accept" ? "Cotización aceptada · En cola de pedidos" : "Solicitud cancelada");
+            await loadMyRequests();
+          } catch {
+            actionNote.textContent = "No se pudo conectar con el servidor.";
+            buttons.forEach((b) => { b.disabled = false; });
+            triggerBtn.textContent = originalText;
+          }
+        }
+
+        if (request.status === "cotizada") {
+          const acceptBtn = document.createElement("button");
+          acceptBtn.type = "button";
+          acceptBtn.className = "solid";
+          acceptBtn.textContent = request.quotePrice !== null
+            ? `Aceptar cotización (${money.format(request.quotePrice)})`
+            : "Aceptar cotización";
+          acceptBtn.addEventListener("click", async () => {
+            const priceText = request.quotePrice !== null ? ` de ${money.format(request.quotePrice)}` : "";
+            const confirmed = await askConfirmAction({
+              title: "Confirmar aceptación",
+              message: `¿Confirmas aceptar la cotización${priceText} para "${request.piece}"? Tu pedido pasará a cola de pedidos y el taller podrá iniciar la impresión.`,
+              confirmLabel: "Sí, aceptar cotización"
+            });
+            if (!confirmed) return;
+            sendClientAction("accept", acceptBtn, "Aceptando…");
+          });
+          actionsWrap.append(acceptBtn);
+        }
+
+        const cancelBtn = document.createElement("button");
+        cancelBtn.type = "button";
+        cancelBtn.className = "ghost cancel-request-btn";
+        cancelBtn.textContent = "Cancelar solicitud";
+        cancelBtn.addEventListener("click", async () => {
+          const confirmed = await askConfirmAction({
+            title: "Cancelar solicitud",
+            message: `¿Seguro que deseas cancelar la solicitud "${request.piece}"? Esta acción no se puede deshacer.`,
+            confirmLabel: "Sí, cancelar solicitud"
+          });
+          if (!confirmed) return;
+          sendClientAction("cancel", cancelBtn, "Cancelando…");
+        });
+        actionsWrap.append(cancelBtn);
+
+        card.append(actionsWrap, actionNote);
+      }
+
+      const history = Array.isArray(request.history) ? request.history : [];
+      const previousEntries = history.slice(1);
+      if (previousEntries.length > 0) {
+        const historyBlock = document.createElement("div");
+        historyBlock.className = "history-block";
+
+        const historyToggle = document.createElement("button");
+        historyToggle.type = "button";
+        historyToggle.className = "history-toggle";
+        historyToggle.setAttribute("aria-expanded", "false");
+        historyToggle.textContent = `▸ Historial del pedido (${previousEntries.length})`;
+
+        const historyList = document.createElement("ul");
+        historyList.className = "history-list";
+        historyList.hidden = true;
+
+        previousEntries.forEach((entry) => {
+          const li = document.createElement("li");
+          li.className = "history-item";
+          const line = document.createElement("div");
+          line.className = "history-item-head";
+
+          const st = document.createElement("span");
+          st.className = `status-badge status-${entry.status}`;
+          st.textContent = requestStatusLabels[entry.status] || entry.status;
+          line.append(st);
+
+          if (entry.quotePrice !== null) {
+            const pr = document.createElement("strong");
+            pr.textContent = money.format(entry.quotePrice);
+            line.append(pr);
+          }
+
+          const info = document.createElement("span");
+          info.className = "history-item-meta";
+          info.textContent = new Date(entry.createdAt).toLocaleString("es-SV");
+          line.append(info);
+          li.append(line);
+
+          if (entry.comment) {
+            const c = document.createElement("p");
+            c.className = "history-item-comment";
+            c.textContent = entry.comment;
+            li.append(c);
+          }
+          historyList.append(li);
+        });
+
+        historyToggle.addEventListener("click", () => {
+          const opening = historyList.hidden;
+          historyList.hidden = !opening;
+          historyToggle.setAttribute("aria-expanded", String(opening));
+          historyToggle.textContent = `${opening ? "▾" : "▸"} Historial del pedido (${previousEntries.length})`;
+        });
+
+        historyBlock.append(historyToggle, historyList);
+        card.append(historyBlock);
       }
 
       myRequestsList.append(card);
