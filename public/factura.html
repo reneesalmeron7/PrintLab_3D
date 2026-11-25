@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Factura | PrintLab 3D</title>
+  <link rel="stylesheet" href="factura.css">
+  <script src="factura.js" defer></script>
+</head>
+<body>
+  <div class="print-actions">
+    <a href="index.html">Ir a la tienda</a>
+    <button id="printReceipt" type="button" hidden>Imprimir o guardar como PDF</button>
+  </div>
+  <p class="print-status" id="receiptStatus" role="status">Cargando factura…</p>
+
+  <main class="receipt" id="receipt" aria-labelledby="invoiceTitle" hidden>
+    <header>
+      <p class="brand">PrintLab 3D</p>
+      <h1 id="invoiceTitle"></h1>
+      <p id="invoiceDetails"></p>
+    </header>
+
+    <table aria-label="Detalle de la compra">
+      <thead>
+        <tr>
+          <th scope="col">Producto</th>
+          <th scope="col">Cantidad</th>
+          <th scope="col">Precio unitario</th>
+          <th scope="col">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody id="invoiceItems"></tbody>
+    </table>
+
+    <p class="total">Total <strong id="invoiceTotal"></strong></p>
+  </main>
+</body>
+</html>
