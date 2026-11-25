@@ -115,6 +115,34 @@ function readProduct(body, { partial }) {
   return { product };
 }
 
+async function listCategories(req, res) {
+  const [rows] = await pool.query("SELECT id, name, description FROM categories ORDER BY name ASC");
+  res.set("Cache-Control", "no-store");
+  res.json({ categories: rows });
+}
+
+async function createCategory(req, res) {
+  const name = String(req.body?.name || "").trim();
+  const description = String(req.body?.description || "").trim().slice(0, 240);
+  if (!name || name.length < 2 || name.length > 80) {
+    return res.status(400).json({ error: "El nombre de la categoría debe tener entre 2 y 80 caracteres." });
+  }
+  const [existing] = await pool.execute(
+    "SELECT id, name, description FROM categories WHERE LOWER(name) = LOWER(?) LIMIT 1",
+    [name]
+  );
+  if (existing.length > 0) {
+    return res.status(409).json({ error: "Esa categoría ya existe." });
+  }
+  const [created] = await pool.execute(
+    "INSERT INTO categories (name, description) VALUES (?, ?)",
+    [name, description]
+  );
+  res.status(201).json({
+    category: { id: created.insertId, name, description }
+  });
+}
+
 async function listProducts(req, res) {
   const [rows] = await pool.query(
     `SELECT p.id, p.name, p.description, p.price, p.stock, p.material, p.print_time, p.image_path,
@@ -203,6 +231,8 @@ async function consumeStock(req, res) {
 module.exports = {
   ensureImageColumn,
   seedCatalog,
+  listCategories,
+  createCategory,
   listProducts,
   createProduct,
   updateProduct,

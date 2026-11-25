@@ -27,7 +27,7 @@ const InvoiceView = (() => {
     }
 
     try {
-      const response = await fetch("/api/invoices", { cache: "no-store" });
+      const response = await fetch("/api/invoices", { credentials: "include", cache: "no-store" });
       if (response.status === 401) {
         const login = document.createElement("a");
         login.href = "acceso.html";

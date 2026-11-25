@@ -16,9 +16,9 @@
     <a class="brand" href="#inicio">
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 32 32" width="32" height="32">
-          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#0D9488"/>
-          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#4F46E5"/>
-          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#F6F3EC"/>
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
         </svg>
       </span>
       <span>PrintLab <em>3D</em></span>
@@ -28,10 +28,11 @@
       <span class="sr">Menú</span>
     </button>
     <nav class="menu" id="menu" aria-label="Navegación principal">
-      <a href="#catalogo">Catálogo</a>
+      <a href="#catalogo">Destacados</a>
+      <a href="catalogo.html">Catálogo</a>
       <a href="#materiales">Materiales</a>
-      <a href="#personalizada">Impresión personalizada</a>
-      <a href="#mis-solicitudes" id="myRequestsLink" hidden>Mis solicitudes</a>
+      <a href="#personalizada">Personalizada</a>
+      <a href="#myRequestsSection" id="myRequestsLink" hidden>Mis solicitudes</a>
       <span id="sessionSlot" class="session-slot"></span>
       <a class="ghost" id="enterLink" href="acceso.html">Entrar</a>
       <a class="solid" id="registerLink" href="acceso.html#registro">Crear cuenta</a>
@@ -52,10 +53,10 @@
 
       <div class="hero-logo">
         <svg viewBox="0 0 200 150" role="img" aria-label="PrintLab 3D">
-          <path d="M28 112 L100 146 L172 112 L100 78 Z" fill="#0D9488"/>
-          <path d="M28 78 L100 112 L172 78 L100 44 Z" fill="#4F46E5"/>
-          <path d="M28 44 L100 78 L172 44 L100 10 Z" fill="#F6F3EC"/>
-          <path d="M46 44 L100 70 L154 44 L100 22 Z" fill="#E0E7FF" opacity=".55"/>
+          <path d="M28 112 L100 146 L172 112 L100 78 Z" fill="#06B6D4"/>
+          <path d="M28 78 L100 112 L172 78 L100 44 Z" fill="#2563EB"/>
+          <path d="M28 44 L100 78 L172 44 L100 10 Z" fill="#EFF6FF"/>
+          <path d="M46 44 L100 70 L154 44 L100 22 Z" fill="#93C5FD" opacity=".55"/>
         </svg>
         <p>PrintLab <em>3D</em></p>
       </div>
@@ -77,7 +78,9 @@
 
       <p class="empty" id="catalogMessage" role="status">Cargando catálogo…</p>
       <button class="ghost catalog-retry" type="button" id="retryCatalog" hidden>Reintentar</button>
-      <div class="grid" id="grid" hidden>
+      <div class="carousel-shell" id="carouselShell">
+        <button class="carousel-btn prev" id="carouselPrev" type="button" aria-label="Anterior">&#8249;</button>
+        <div class="carousel-track" id="grid" hidden>
         <article class="card" data-id="p1" data-material="PLA" data-name="Llavero geométrico" data-price="85" data-stock="5">
           <div class="shot teal">
             <img class="product-art" src="assets/productos/llavero-geometrico.png" width="150" height="112" alt="">
@@ -173,8 +176,13 @@
             </footer>
           </div>
         </article>
+        </div>
+        <button class="carousel-btn next" id="carouselNext" type="button" aria-label="Siguiente">&#8250;</button>
       </div>
       <p class="empty" id="empty" role="status" hidden></p>
+      <div class="carousel-footer">
+        <a class="solid" href="catalogo.html">Ver todo el catálogo →</a>
+      </div>
     </section>
 
     <section class="materials" id="materiales">
@@ -228,27 +236,41 @@
           <li><strong>Recibes una cotización</strong> antes de que la máquina arranque.</li>
         </ol>
       </div>
-      <form class="sheet" id="requestForm">
+      <form class="sheet request-sheet" id="requestForm">
         <div id="formFields">
-          <label>Nombre de la pieza
-            <input name="pieza" required maxlength="80" placeholder="Ej. clip para cable de 12 mm">
-          </label>
+          <div class="form-row-2">
+            <label>Nombre de la pieza
+              <input name="pieza" required maxlength="80" placeholder="Ej. clip para cable de 12 mm">
+            </label>
+            <label>Material
+              <select name="material" required>
+                <option value="">Elegir filamento</option>
+                <option>PLA</option>
+                <option>PETG</option>
+                <option>ABS</option>
+              </select>
+            </label>
+          </div>
           <label>Descripción
-            <textarea name="descripcion" required maxlength="400" rows="4" placeholder="Medidas, uso y color. Si tienes un STL, dilo aquí."></textarea>
+            <textarea name="descripcion" required maxlength="400" rows="4" placeholder="Medidas, uso, color y cualquier detalle importante."></textarea>
           </label>
-          <label>Material
-            <select name="material" required>
-              <option value="">Elegir filamento</option>
-              <option>PLA</option>
-              <option>PETG</option>
-              <option>ABS</option>
-            </select>
-          </label>
-          <label class="file">Archivo o imagen de referencia
-            <input type="file" name="referencia" accept=".stl,.obj,.3mf,.png,.jpg,.jpeg,.webp">
-            <span id="fileName">Ningún archivo elegido</span>
-          </label>
-          <p class="form-note" id="requestNotice" role="status" style="margin: 0.75rem 0;"></p>
+          <div class="file-group">
+            <span class="field-caption">Archivo o imagen de referencia <small>(opcional)</small></span>
+            <label class="file-drop" id="fileDrop">
+              <input class="file-input-hidden" type="file" name="referencia" accept=".stl,.obj,.3mf,.png,.jpg,.jpeg,.webp">
+              <span class="file-drop-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+              </span>
+              <span class="file-drop-title">Haz clic para subir o arrastra tu archivo</span>
+              <span class="file-drop-hint">STL, OBJ, 3MF, PNG, JPG o WEBP · Máx. 10 MB</span>
+              <span class="file-drop-name" id="fileName">Ningún archivo elegido</span>
+            </label>
+          </div>
+          <p class="form-note" id="requestNotice" role="status"></p>
           <button class="solid full" type="submit" id="requestSubmit">Enviar solicitud</button>
         </div>
         <div class="thanks" id="thanks" hidden>
@@ -381,22 +403,26 @@
   </dialog>
 
   <dialog class="invoice" id="authRequestDialog" aria-labelledby="authDialogTitle">
-    <p class="eyebrow dark">PrintLab 3D</p>
+    <div class="dialog-top">
+      <p class="eyebrow dark">PrintLab 3D</p>
+      <button class="dialog-close" type="button" id="closeAuthDialog" aria-label="Cerrar">✕</button>
+    </div>
     <h2 id="authDialogTitle">Inicia sesión o regístrate</h2>
     <p>Para enviar una solicitud de impresión personalizada necesitas una cuenta. ¿Deseas iniciar sesión o crear una cuenta nueva?</p>
     <div class="invoice-actions" style="margin-top: 1.5rem; justify-content: flex-end; gap: 8px;">
-      <button class="ghost" type="button" id="closeAuthDialog">Cancelar</button>
       <a class="ghost" href="acceso.html" style="text-decoration:none;">Iniciar sesión</a>
       <a class="solid" href="acceso.html#registro" style="text-decoration:none;">Crear cuenta</a>
     </div>
   </dialog>
 
   <dialog class="invoice" id="confirmActionDialog" aria-labelledby="confirmActionTitle">
-    <p class="eyebrow dark">Confirmar acción</p>
+    <div class="dialog-top">
+      <p class="eyebrow dark">Confirmar acción</p>
+      <button class="dialog-close" type="button" id="cancelConfirmAction" aria-label="Cerrar">✕</button>
+    </div>
     <h2 id="confirmActionTitle">¿Confirmar?</h2>
     <p id="confirmActionText"></p>
     <div class="invoice-actions" style="margin-top: 1.5rem; justify-content: flex-end; gap: 8px;">
-      <button class="ghost" type="button" id="cancelConfirmAction">Volver</button>
       <button class="solid" type="button" id="okConfirmAction">Confirmar</button>
     </div>
   </dialog>

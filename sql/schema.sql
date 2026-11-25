@@ -60,8 +60,6 @@ CREATE TABLE IF NOT EXISTS custom_requests (
   piece_name VARCHAR(120) NOT NULL DEFAULT '',
   material ENUM('PLA', 'PETG', 'ABS') NOT NULL DEFAULT 'PLA',
   description TEXT NOT NULL,
-  title VARCHAR(120) NULL,
-  material VARCHAR(20) NULL,
   reference_file VARCHAR(255),
   stored_file VARCHAR(255) NULL,
   status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL DEFAULT 'pendiente',

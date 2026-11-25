@@ -15,21 +15,66 @@ const cartNotice = document.querySelector("#cartNotice");
 const invoiceDialog = document.querySelector("#invoice");
 const money = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 const fileName = document.querySelector("#fileName");
+const carouselPrev = document.querySelector("#carouselPrev");
+const carouselNext = document.querySelector("#carouselNext");
+const catalogSearch = document.querySelector("#catalogSearch");
+const categoryFilter = document.querySelector("#categoryFilter");
 
-const catalogArtwork = new Map(
-  [...grid.querySelectorAll(".card")].map((card) => {
-    const shot = card.querySelector(".shot");
-    return [card.dataset.name, {
+const DEFAULT_ARTWORK = [
+  ["Llavero geométrico", { material: "PLA", source: "assets/productos/llavero-geometrico.png", classes: "shot teal" }],
+  ["Engranaje de repuesto", { material: "PETG", source: "assets/productos/engranaje.png", classes: "shot indigo" }],
+  ["Soporte de celular", { material: "PLA", source: "assets/productos/soporte-celular.png", classes: "shot sand" }],
+  ["Mini figura articulada", { material: "PLA", source: "assets/productos/figura-articulada.png", classes: "shot coral" }],
+  ["Carcasa de prototipo", { material: "ABS", source: "assets/productos/carcasa.png", classes: "shot slate" }],
+  ["Maceta hexagonal", { material: "PETG", source: "assets/productos/maceta-hexagonal.png", classes: "shot leaf" }]
+];
+
+const catalogArtwork = new Map(DEFAULT_ARTWORK);
+[...grid.querySelectorAll(".card")].forEach((card) => {
+  const shot = card.querySelector(".shot");
+  const art = shot?.querySelector(".product-art");
+  if (art) {
+    catalogArtwork.set(card.dataset.name, {
       material: card.dataset.material,
-      source: shot.querySelector(".product-art").getAttribute("src"),
+      source: art.getAttribute("src"),
       classes: shot.className
-    }];
-  })
-);
+    });
+  }
+});
 
-const cart = [];
+const CART_KEY = "pl-cart";
+function loadSavedCart() {
+  try {
+    const raw = localStorage.getItem(CART_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+function saveCart() {
+  try {
+    localStorage.setItem(CART_KEY, JSON.stringify(cart));
+  } catch {}
+}
+
+const cart = loadSavedCart();
+const payment = document.querySelector("#payment");
+const paymentForm = document.querySelector("#paymentForm");
+const paymentMethods = document.querySelector("#paymentMethods");
+const paymentDetails = paymentMethods ? paymentMethods.querySelectorAll("[data-payment-details]") : [];
+const paymentNotice = document.querySelector("#paymentNotice");
+const confirmPayment = document.querySelector("#confirmPayment");
+const backToCart = document.querySelector("#backToCart");
+const demoPaymentProfiles = {
+  tarjeta: { titular: "Cliente Demo", vencimiento: "12/30", numero: "•••• •••• •••• 4242" },
+  transferencia: { banco: "Banco Demo", beneficiario: "PrintLab 3D", cuenta: "•••• •••• 5678" }
+};
+let paying = false;
 let catalog = [];
 let filter = "todos";
+let selectedCategory = "todas";
+let searchQuery = "";
 
 function asProduct(product) {
   return {
@@ -58,6 +103,26 @@ async function loadCatalog() {
   catalogMessage.hidden = true;
   retryCatalog.hidden = true;
   syncCatalog();
+  reconcileCartWithCatalog();
+}
+
+function reconcileCartWithCatalog() {
+  let changed = false;
+  for (const item of cart.slice()) {
+    const product = catalog.find((entry) => entry.id === item.id);
+    if (!product || product.stock < 1) {
+      cart.splice(cart.indexOf(item), 1);
+      changed = true;
+      continue;
+    }
+    const qty = Math.min(item.qty, product.stock);
+    if (qty !== item.qty || product.price !== item.price || product.name !== item.name) {
+      Object.assign(item, { qty, name: product.name, price: product.price });
+      changed = true;
+    }
+  }
+  if (changed) renderCart();
+  return changed;
 }
 
 async function showCatalog() {
@@ -78,7 +143,23 @@ retryCatalog.addEventListener("click", async () => {
   if (retryCatalog.hidden) document.querySelector(".chip.on").focus();
 });
 
+function isStaffSession() {
+  const current = PrintLab.session();
+  return Boolean(current && (current.role === "vendedor" || current.role === "admin"));
+}
+
+function applyRoleVisibility() {
+  const staff = isStaffSession();
+  document.body.classList.toggle("role-staff", staff);
+  if (staff) {
+    if (cartPanel) cartPanel.hidden = true;
+    const reqSec = document.querySelector("#myRequestsSection");
+    if (reqSec) reqSec.hidden = true;
+  }
+}
+
 PrintLab.mountSession();
+applyRoleVisibility();
 
 function showToast(message) {
   toast.textContent = message;
@@ -107,7 +188,9 @@ function applyImage(shot, photo, artwork) {
 function updateCard(card, product) {
   card.dataset.id = product.id;
   card.dataset.material = product.material;
+  card.dataset.category = product.category || "";
   card.dataset.name = product.name;
+  card.dataset.description = product.description || "";
   card.dataset.price = String(product.price);
   card.dataset.stock = String(product.stock);
   const tone = product.material === "ABS" ? "slate" : product.material === "PETG" ? "indigo" : "teal";
@@ -150,17 +233,54 @@ function cardFrom(product) {
   return article;
 }
 
+function populateCategories() {
+  if (!categoryFilter) return;
+  const previous = categoryFilter.value || "todas";
+  const categories = [...new Set(catalog.map((p) => p.category).filter(Boolean))].sort();
+  categoryFilter.replaceChildren();
+  const allOpt = document.createElement("option");
+  allOpt.value = "todas";
+  allOpt.textContent = "Todas las categorías";
+  categoryFilter.append(allOpt);
+  categories.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    categoryFilter.append(opt);
+  });
+  categoryFilter.value = categories.includes(previous) ? previous : "todas";
+  selectedCategory = categoryFilter.value;
+}
+
+function updateCarouselButtons() {
+  if (!carouselPrev || !carouselNext) return;
+  const hideArrows = grid.hidden || grid.scrollWidth <= grid.clientWidth + 4;
+  carouselPrev.hidden = hideArrows;
+  carouselNext.hidden = hideArrows;
+}
+
 function applyFilter() {
   let visible = 0;
+  const query = searchQuery.trim().toLowerCase();
   grid.querySelectorAll(".card").forEach((card) => {
-    const show = filter === "todos" || card.dataset.material === filter;
+    const matchMat = filter === "todos" || card.dataset.material === filter;
+    const matchCat = selectedCategory === "todas" || (card.dataset.category || "") === selectedCategory;
+    const haystack = `${card.dataset.name || ""} ${card.dataset.description || ""} ${card.dataset.category || ""}`.toLowerCase();
+    const matchQuery = !query || haystack.includes(query);
+    const show = matchMat && matchCat && matchQuery;
     card.classList.toggle("hide", !show);
     if (show) visible += 1;
   });
   empty.hidden = grid.hidden || visible !== 0;
-  empty.textContent = empty.hidden ? "" : filter === "todos"
-    ? "No hay piezas disponibles en este momento."
-    : "No hay piezas disponibles en " + filter + ".";
+  empty.textContent = empty.hidden ? "" : (query || selectedCategory !== "todas")
+    ? "No encontramos piezas con esos filtros."
+    : filter === "todos"
+      ? "No hay piezas disponibles en este momento."
+      : "No hay piezas disponibles en " + filter + ".";
+  if (grid.classList.contains("carousel-track")) {
+    grid.scrollLeft = 0;
+    requestAnimationFrame(updateCarouselButtons);
+  }
 }
 
 function syncCatalog() {
@@ -174,7 +294,40 @@ function syncCatalog() {
     if (card) updateCard(card, product);
     else grid.append(cardFrom(product));
   });
+  populateCategories();
   applyFilter();
+}
+
+if (carouselPrev && carouselNext) {
+  function scrollCarousel(direction) {
+    const card = grid.querySelector(".card:not(.hide)");
+    const step = card ? (card.getBoundingClientRect().width + 18) : 320;
+    const maxScroll = Math.max(0, grid.scrollWidth - grid.clientWidth);
+    if (direction > 0 && grid.scrollLeft >= maxScroll - 8) {
+      grid.scrollTo({ left: 0, behavior: "smooth" });
+    } else if (direction < 0 && grid.scrollLeft <= 8) {
+      grid.scrollTo({ left: maxScroll, behavior: "smooth" });
+    } else {
+      grid.scrollBy({ left: direction * step, behavior: "smooth" });
+    }
+  }
+  carouselPrev.addEventListener("click", () => scrollCarousel(-1));
+  carouselNext.addEventListener("click", () => scrollCarousel(1));
+  window.addEventListener("resize", updateCarouselButtons);
+}
+
+if (catalogSearch) {
+  catalogSearch.addEventListener("input", () => {
+    searchQuery = catalogSearch.value;
+    applyFilter();
+  });
+}
+
+if (categoryFilter) {
+  categoryFilter.addEventListener("change", () => {
+    selectedCategory = categoryFilter.value;
+    applyFilter();
+  });
 }
 
 window.addEventListener("scroll", () => {
@@ -194,6 +347,7 @@ chips.forEach((chip) => {
 });
 
 grid.addEventListener("click", (event) => {
+  if (isStaffSession()) return;
   const button = event.target.closest(".add");
   if (!button || cartPanel.getAttribute("aria-busy") === "true") return;
   const card = button.closest(".card");
@@ -252,6 +406,7 @@ function quantityButton(item, text, label, delta) {
 }
 
 function renderCart() {
+  saveCart();
   const focused = document.activeElement;
   cartCount.textContent = String(cart.reduce((sum, item) => sum + item.qty, 0));
   cartList.replaceChildren();
@@ -277,96 +432,258 @@ function renderCart() {
   }
   cartTotal.textContent = money.format(total);
   checkout.disabled = cart.length === 0;
-  if (focused.closest(".cart-quantity")) {
+  if (focused && focused.closest && focused.closest(".cart-quantity")) {
     const corresponding = [...cartList.querySelectorAll("button")]
       .find((button) => button.getAttribute("aria-label") === focused.getAttribute("aria-label"));
     (corresponding || document.querySelector("#closeCart")).focus();
   }
 }
 
-function showInvoice(invoice) {
-  document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
-  document.querySelector("#invoiceDetails").textContent =
-    invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
-  const body = document.querySelector("#invoiceItems");
-  body.replaceChildren();
-  for (const item of invoice.items) {
-    const row = body.insertRow();
-    for (const value of [item.name, item.qty, money.format(item.price), money.format(item.price * item.qty)]) {
-      row.insertCell().textContent = value;
+function cartAmount() {
+  return cart.reduce((sum, { price, qty }) => sum + price * qty, 0);
+}
+
+function showInvoice(invoice, method) {
+  if (typeof InvoiceView !== "undefined" && InvoiceView.render) {
+    InvoiceView.render(invoiceDialog, invoice);
+  } else {
+    document.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
+    document.querySelector("#invoiceDetails").textContent =
+      invoice.buyer + " · " + new Date(invoice.createdAt).toLocaleString("es-SV");
+    const body = document.querySelector("#invoiceItems");
+    body.replaceChildren();
+    for (const item of invoice.items) {
+      const row = body.insertRow();
+      for (const value of [item.name, item.qty, money.format(item.price), money.format(item.price * item.qty)]) {
+        row.insertCell().textContent = value;
+      }
     }
+    document.querySelector("#invoiceTotal").textContent = money.format(invoice.total);
   }
-  document.querySelector("#invoiceTotal").textContent = money.format(invoice.total);
+  const invoicePayment = document.querySelector("#invoicePayment");
+  if (invoicePayment) {
+    invoicePayment.textContent = method ? ("Pago simulado con " + method + ".") : "";
+  }
+  const printLink = document.querySelector("#printInvoice");
+  if (printLink && printLink.tagName === "A") {
+    printLink.href = "factura.html?id=" + encodeURIComponent(invoice.id);
+  }
   invoiceDialog.showModal();
 }
 
-document.querySelector("#printInvoice").addEventListener("click", () => window.print());
-
 async function refreshCart() {
+  const snapshot = cart.map((i) => ({ ...i }));
   await loadCatalog();
-  for (const item of cart.slice()) {
-    const product = catalog.find((entry) => entry.id === item.id);
-    if (!product || product.stock === 0) cart.splice(cart.indexOf(item), 1);
-    else Object.assign(item, { qty: Math.min(item.qty, product.stock), name: product.name, price: product.price });
+  if (cart.length !== snapshot.length) return true;
+  return cart.some((item, idx) =>
+    item.id !== snapshot[idx].id || item.qty !== snapshot[idx].qty || item.price !== snapshot[idx].price
+  );
+}
+
+function renderPaymentSummary() {
+  const list = document.querySelector("#paymentItems");
+  if (!list) return;
+  list.replaceChildren();
+  for (const { name, qty, price } of cart) {
+    const row = document.createElement("li");
+    const item = document.createElement("span");
+    const subtotal = document.createElement("strong");
+    item.textContent = qty + " × " + name;
+    subtotal.textContent = money.format(price * qty);
+    row.append(item, subtotal);
+    list.append(row);
+  }
+  const paymentTotal = document.querySelector("#paymentTotal");
+  if (paymentTotal) paymentTotal.textContent = money.format(cartAmount());
+  updatePaymentMethod();
+}
+
+function selectedPaymentMethod() {
+  return paymentForm ? paymentForm.querySelector('input[name="method"]:checked')?.value : "";
+}
+
+function updatePaymentMethod() {
+  if (!confirmPayment) return;
+  const method = selectedPaymentMethod();
+  let filled = false;
+  for (const details of paymentDetails) {
+    details.hidden = details.dataset.paymentDetails !== method;
+    if (!details.hidden) {
+      filled = [...details.querySelectorAll("[data-payment-field]")].every((field) => field.value);
+    }
+  }
+  confirmPayment.disabled = paying || cart.length === 0 || !filled;
+}
+
+if (paymentMethods) {
+  paymentMethods.addEventListener("change", updatePaymentMethod);
+}
+
+for (const details of paymentDetails) {
+  const fillBtn = details.querySelector("button");
+  if (fillBtn) {
+    fillBtn.addEventListener("click", () => {
+      const profile = demoPaymentProfiles[details.dataset.paymentDetails];
+      if (!profile) return;
+      for (const field of details.querySelectorAll("[data-payment-field]")) {
+        field.value = profile[field.dataset.paymentField] || "";
+      }
+      if (paymentNotice) paymentNotice.textContent = "Se cargaron los datos guardados de la demostración.";
+      updatePaymentMethod();
+    });
   }
 }
 
-checkout.addEventListener("click", async () => {
+function offerLogin(target) {
+  const link = document.createElement("a");
+  link.href = "acceso.html";
+  link.textContent = "Inicia sesión como comprador para continuar.";
+  (target || paymentNotice || cartNotice).replaceChildren(link);
+}
+
+checkout.addEventListener("click", () => {
   if (cart.length === 0 || checkout.disabled) return;
-  checkout.disabled = true;
-  cartList.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-  cartPanel.setAttribute("aria-busy", "true");
-  cartNotice.textContent = "Generando factura…";
-
-  try {
-    const response = await fetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ items: cart.map(({ id, qty }) => ({ id: Number(id), qty })) })
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      if ([404, 409].includes(response.status)) await refreshCart().catch(() => {});
-      if (response.status === 401) {
-        const link = document.createElement("a");
-        link.href = "acceso.html";
-        link.textContent = "Inicia sesión para generar tu factura.";
-        cartNotice.replaceChildren(link);
-      } else {
-        cartNotice.textContent = data.error || "No se pudo generar la factura.";
-      }
-      return;
-    }
-
-    cart.length = 0;
-    cartNotice.textContent = "";
-    setCartOpen(false);
-    showInvoice(data.invoice);
-    loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
-  } catch {
-    cartNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
-  } finally {
-    cartPanel.setAttribute("aria-busy", "false");
-    renderCart();
+  if (payment && paymentForm) {
+    paymentForm.reset();
+    if (paymentNotice) paymentNotice.textContent = "";
+    renderPaymentSummary();
+    payment.showModal();
   }
 });
 
+if (backToCart && payment) {
+  backToCart.addEventListener("click", () => payment.close());
+  payment.addEventListener("cancel", (event) => {
+    if (paying) event.preventDefault();
+  });
+}
+
+if (paymentForm) {
+  paymentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (confirmPayment.disabled) return;
+    const method = selectedPaymentMethod();
+    paying = true;
+    paymentMethods.disabled = true;
+    backToCart.disabled = true;
+    confirmPayment.disabled = true;
+    paymentNotice.textContent = "Verificando tu compra…";
+
+    try {
+      if (await refreshCart()) {
+        paymentNotice.textContent = cart.length
+          ? "El carrito cambió. Revisa el total antes de confirmar de nuevo."
+          : "Las piezas ya no están disponibles. Vuelve al carrito para elegir otras.";
+        return;
+      }
+
+      const response = await fetch("/api/invoices", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: cart.map(({ id, qty }) => ({ id: Number(id), qty })) })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if ([404, 409].includes(response.status)) await refreshCart().catch(() => {});
+        if (response.status === 401) {
+          PrintLab.clearSession();
+          PrintLab.mountSession();
+applyRoleVisibility();
+          offerLogin(paymentNotice);
+        } else if (response.status === 403) {
+          paymentNotice.textContent = "Solo las cuentas con rol comprador pueden realizar compras.";
+        } else {
+          paymentNotice.textContent = data.error || "No se pudo confirmar la compra.";
+        }
+        return;
+      }
+
+      cart.length = 0;
+      cartNotice.textContent = "";
+      payment.close();
+      setCartOpen(false);
+      showInvoice(data.invoice, method);
+      loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+    } catch {
+      paymentNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
+    } finally {
+      paying = false;
+      paymentMethods.disabled = false;
+      backToCart.disabled = false;
+      renderCart();
+      if (payment.open) renderPaymentSummary();
+    }
+  });
+}
+
 const authRequestDialog = document.querySelector("#authRequestDialog");
 const closeAuthDialog = document.querySelector("#closeAuthDialog");
-if (closeAuthDialog) closeAuthDialog.addEventListener("click", () => authRequestDialog.close());
+const requestForm = document.querySelector("#requestForm");
 
-// Bloquear cualquier campo del formulario si el usuario no tiene sesión
-const requestFormFields = document.querySelectorAll("#requestForm input, #requestForm textarea, #requestForm select, #requestForm button[type='submit']");
-requestFormFields.forEach(field => {
-  field.addEventListener("focus", interceptIfGuest, true);
-  field.addEventListener("mousedown", interceptIfGuest, true);
-});
-
-function interceptIfGuest(event) {
-  if (!PrintLab.session()) {
-    event.preventDefault();
-    event.stopPropagation();
+function openAuthRequestDialog() {
+  if (!authRequestDialog) return;
+  if (!authRequestDialog.open) {
     authRequestDialog.showModal();
+  }
+}
+
+if (closeAuthDialog) {
+  closeAuthDialog.addEventListener("click", () => {
+    if (authRequestDialog && authRequestDialog.open) authRequestDialog.close();
+  });
+}
+
+if (authRequestDialog) {
+  authRequestDialog.addEventListener("click", (event) => {
+    if (event.target === authRequestDialog && authRequestDialog.open) {
+      authRequestDialog.close();
+    }
+  });
+}
+
+// Bloquear cualquier campo, etiqueta o botón del formulario si el usuario no tiene sesión
+function interceptIfGuest(event) {
+  if (PrintLab.session()) return;
+  if (event.type === "keydown" && (event.key === "Tab" || event.key === "Escape")) return;
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.target && typeof event.target.blur === "function") {
+    event.target.blur();
+  }
+  openAuthRequestDialog();
+}
+
+if (requestForm) {
+  ["pointerdown", "mousedown", "click", "focusin", "keydown"].forEach((evt) => {
+    requestForm.addEventListener(evt, interceptIfGuest, true);
+  });
+}
+
+async function syncServerSession() {
+  try {
+    const response = await fetch("/api/auth/me", {
+      credentials: "include",
+      cache: "no-store"
+    });
+    if (response.ok) {
+      const data = await response.json().catch(() => null);
+      if (data && data.user) {
+        PrintLab.saveSession(data.user);
+        PrintLab.mountSession();
+applyRoleVisibility();
+        loadMyRequests();
+        return;
+      }
+    }
+    if (response.status === 401) {
+      PrintLab.clearSession();
+      PrintLab.mountSession();
+applyRoleVisibility();
+      if (myRequestsSection) myRequestsSection.hidden = true;
+    }
+  } catch {
+    // Si no hay conexión, mantener estado actual
   }
 }
 
@@ -430,7 +747,7 @@ function readFileAsDataUrl(file) {
 async function loadMyRequests() {
   if (!myRequestsSection || !myRequestsList) return;
   const current = PrintLab.session();
-  if (!current) {
+  if (!current || isStaffSession()) {
     myRequestsSection.hidden = true;
     return;
   }
@@ -441,6 +758,9 @@ async function loadMyRequests() {
       cache: "no-store"
     });
     if (response.status === 401) {
+      PrintLab.clearSession();
+      PrintLab.mountSession();
+applyRoleVisibility();
       myRequestsSection.hidden = true;
       return;
     }
@@ -606,7 +926,7 @@ async function loadMyRequests() {
 
         const cancelBtn = document.createElement("button");
         cancelBtn.type = "button";
-        cancelBtn.className = "ghost cancel-request-btn";
+        cancelBtn.className = "cancel-text-btn";
         cancelBtn.textContent = "Cancelar solicitud";
         cancelBtn.addEventListener("click", async () => {
           const confirmed = await askConfirmAction({
@@ -697,103 +1017,157 @@ if (refreshMyRequests) {
   refreshMyRequests.addEventListener("click", () => loadMyRequests());
 }
 
-document.querySelector("#requestForm").addEventListener("submit", async (event) => {
-  event.preventDefault();
+if (requestForm) {
+  requestForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
 
-  const current = PrintLab.session();
-  if (!current) {
-    authRequestDialog.showModal();
+    const current = PrintLab.session();
+    if (!current) {
+      openAuthRequestDialog();
+      return;
+    }
+
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const piece = String(data.get("pieza") || "").trim();
+    const material = String(data.get("material") || "").trim();
+    const description = String(data.get("descripcion") || "").trim();
+    const fileInput = form.querySelector('input[name="referencia"]');
+    const selectedFile = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+    if (requestNotice) requestNotice.textContent = "";
+
+    let filePayload = null;
+    if (selectedFile) {
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        if (requestNotice) requestNotice.textContent = "El archivo supera el límite máximo de 10 MB.";
+        return;
+      }
+      try {
+        const encoded = await readFileAsDataUrl(selectedFile);
+        filePayload = { name: selectedFile.name, data: encoded };
+      } catch {
+        if (requestNotice) requestNotice.textContent = "No se pudo leer el archivo seleccionado.";
+        return;
+      }
+    }
+
+    if (requestSubmit) {
+      requestSubmit.disabled = true;
+      requestSubmit.textContent = "Enviando…";
+    }
+
+    try {
+      const response = await fetch("/api/requests", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          piece,
+          material,
+          description,
+          file: filePayload
+        })
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        PrintLab.clearSession();
+        PrintLab.mountSession();
+applyRoleVisibility();
+        openAuthRequestDialog();
+        return;
+      }
+      if (!response.ok) {
+        if (requestNotice) requestNotice.textContent = result.error || "No se pudo enviar la solicitud.";
+        return;
+      }
+
+      document.querySelector("#thanksTitle").textContent = piece;
+      document.querySelector("#thanksText").textContent =
+        "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";
+      document.querySelector("#formFields").hidden = true;
+      document.querySelector("#thanks").hidden = false;
+      loadMyRequests();
+    } catch {
+      if (requestNotice) requestNotice.textContent = "No se pudo conectar con el servidor.";
+    } finally {
+      if (requestSubmit) {
+        requestSubmit.disabled = false;
+        requestSubmit.textContent = "Enviar solicitud";
+      }
+    }
+  });
+}
+
+const againBtn = document.querySelector("#again");
+const fileDrop = document.querySelector("#fileDrop");
+
+function updateFileDropUI(file) {
+  if (!fileName) return;
+  if (!file) {
+    fileName.textContent = "Ningún archivo elegido";
+    if (fileDrop) fileDrop.classList.remove("has-file");
     return;
   }
+  const mb = file.size >= 1024 * 1024
+    ? (file.size / (1024 * 1024)).toFixed(1) + " MB"
+    : Math.max(1, Math.round(file.size / 1024)) + " KB";
+  fileName.textContent = `✓ ${file.name} (${mb})`;
+  if (fileDrop) fileDrop.classList.add("has-file");
+}
 
-  const form = event.currentTarget;
-  const data = new FormData(form);
-  const piece = String(data.get("pieza") || "").trim();
-  const material = String(data.get("material") || "").trim();
-  const description = String(data.get("descripcion") || "").trim();
-  const fileInput = form.querySelector('input[name="referencia"]');
-  const selectedFile = fileInput && fileInput.files ? fileInput.files[0] : null;
+if (againBtn && requestForm) {
+  againBtn.addEventListener("click", () => {
+    requestForm.reset();
+    if (requestNotice) requestNotice.textContent = "";
+    updateFileDropUI(null);
+    document.querySelector("#thanks").hidden = true;
+    document.querySelector("#formFields").hidden = false;
+  });
+}
 
-  if (requestNotice) requestNotice.textContent = "";
+const refFileInput = document.querySelector('input[name="referencia"]');
+if (refFileInput) {
+  refFileInput.addEventListener("change", (event) => {
+    updateFileDropUI(event.target.files[0] || null);
+  });
+}
 
-  let filePayload = null;
-  if (selectedFile) {
-    if (selectedFile.size > 10 * 1024 * 1024) {
-      if (requestNotice) requestNotice.textContent = "El archivo supera el límite máximo de 10 MB.";
-      return;
-    }
-    try {
-      const encoded = await readFileAsDataUrl(selectedFile);
-      filePayload = { name: selectedFile.name, data: encoded };
-    } catch {
-      if (requestNotice) requestNotice.textContent = "No se pudo leer el archivo seleccionado.";
-      return;
-    }
-  }
-
-  if (requestSubmit) {
-    requestSubmit.disabled = true;
-    requestSubmit.textContent = "Enviando…";
-  }
-
-  try {
-    const response = await fetch("/api/requests", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        piece,
-        material,
-        description,
-        file: filePayload
-      })
+if (fileDrop && refFileInput) {
+  ["dragenter", "dragover"].forEach((evt) => {
+    fileDrop.addEventListener(evt, (event) => {
+      event.preventDefault();
+      if (!PrintLab.session()) return;
+      fileDrop.classList.add("dragging");
     });
-    const result = await response.json().catch(() => ({}));
-
-    if (response.status === 401) {
-      authRequestDialog.showModal();
+  });
+  ["dragleave", "dragend", "drop"].forEach((evt) => {
+    fileDrop.addEventListener(evt, () => fileDrop.classList.remove("dragging"));
+  });
+  fileDrop.addEventListener("drop", (event) => {
+    event.preventDefault();
+    if (!PrintLab.session()) {
+      openAuthRequestDialog();
       return;
     }
-    if (!response.ok) {
-      if (requestNotice) requestNotice.textContent = result.error || "No se pudo enviar la solicitud.";
-      return;
-    }
-
-    document.querySelector("#thanksTitle").textContent = piece;
-    document.querySelector("#thanksText").textContent =
-      "La solicitud quedó registrada con filamento " + material + ". Un impresor la revisa antes de cotizar.";
-    document.querySelector("#formFields").hidden = true;
-    document.querySelector("#thanks").hidden = false;
-    loadMyRequests();
-  } catch {
-    if (requestNotice) requestNotice.textContent = "No se pudo conectar con el servidor.";
-  } finally {
-    if (requestSubmit) {
-      requestSubmit.disabled = false;
-      requestSubmit.textContent = "Enviar solicitud";
-    }
-  }
-});
-
-document.querySelector("#again").addEventListener("click", () => {
-  document.querySelector("#requestForm").reset();
-  if (requestNotice) requestNotice.textContent = "";
-  fileName.textContent = "Ningún archivo elegido";
-  document.querySelector("#thanks").hidden = true;
-  document.querySelector("#formFields").hidden = false;
-});
-
-document.querySelector('input[name="referencia"]').addEventListener("change", (event) => {
-  const file = event.target.files[0];
-  fileName.textContent = file ? file.name : "Ningún archivo elegido";
-});
+    const dropped = event.dataTransfer?.files?.[0];
+    if (!dropped) return;
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(dropped);
+      refFileInput.files = dt.files;
+    } catch {}
+    updateFileDropUI(dropped);
+  });
+}
 
 showCatalog();
-loadMyRequests();
+syncServerSession();
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && !grid.hidden) {
     loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
-    loadMyRequests();
+    syncServerSession();
   }
 });
 renderCart();

@@ -115,6 +115,10 @@ const PrintLab = (function () {
     return current;
   }
 
+  function clearSession() {
+    localStorage.removeItem(SESSION);
+  }
+
   function login(username, password) {
     const found = users().find((user) => user.username === username && user.password === password);
     if (!found) return null;
@@ -251,6 +255,8 @@ const PrintLab = (function () {
     if (!current) {
       if (enter) enter.hidden = false;
       if (registerLink) registerLink.hidden = false;
+      const mineLink = document.querySelector("#myRequestsLink");
+      if (mineLink) mineLink.hidden = true;
       return;
     }
     if (enter) enter.hidden = true;
@@ -291,6 +297,7 @@ const PrintLab = (function () {
     session: session,
     home: home,
     saveSession: saveSession,
+    clearSession: clearSession,
     login: login,
     logout: logout,
     register: register,

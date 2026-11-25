@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrintLab 3D — Catálogo completo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="catalogo">
+  <a class="skip" href="#catalogo">Saltar al catálogo</a>
+
+  <header class="nav scrolled" id="nav">
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
+        </svg>
+      </span>
+      <span>PrintLab <em>3D</em></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span><span></span>
+      <span class="sr">Menú</span>
+    </button>
+    <nav class="menu" id="menu" aria-label="Navegación principal">
+      <a href="index.html">Inicio</a>
+      <a href="catalogo.html">Catálogo</a>
+      <a href="index.html#materiales">Materiales</a>
+      <a href="index.html#personalizada">Impresión personalizada</a>
+      <span id="sessionSlot" class="session-slot"></span>
+      <a class="ghost" id="enterLink" href="acceso.html">Entrar</a>
+      <a class="solid" id="registerLink" href="acceso.html#registro">Crear cuenta</a>
+    </nav>
+  </header>
+
+  <main id="inicio">
+    <section class="catalog full-catalog" id="catalogo" tabindex="-1">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow dark">Catálogo completo</p>
+          <h1>Todas las piezas disponibles.</h1>
+        </div>
+        <a class="ghost" href="index.html">← Volver al inicio</a>
+      </div>
+
+      <div class="catalog-toolbar">
+        <input type="search" id="catalogSearch" placeholder="Buscar por nombre o descripción…" aria-label="Buscar en el catálogo">
+        <select id="categoryFilter" aria-label="Filtrar por categoría">
+          <option value="todas">Todas las categorías</option>
+        </select>
+        <div class="filters" role="group" aria-label="Filtrar por material">
+          <button class="chip on" data-filter="todos" type="button" aria-pressed="true">Todos</button>
+          <button class="chip" data-filter="PLA" type="button" aria-pressed="false">PLA</button>
+          <button class="chip" data-filter="PETG" type="button" aria-pressed="false">PETG</button>
+          <button class="chip" data-filter="ABS" type="button" aria-pressed="false">ABS</button>
+        </div>
+      </div>
+
+      <p class="empty" id="catalogMessage" role="status">Cargando catálogo…</p>
+      <button class="ghost catalog-retry" type="button" id="retryCatalog" hidden>Reintentar</button>
+      <div class="grid" id="grid" hidden></div>
+      <p class="empty" id="empty" role="status" hidden></p>
+    </section>
+  </main>
+
+  <footer class="foot-wrap">
+    <div class="foot">
+      <div class="foot-copy">
+        <strong>PrintLab 3D</strong>
+        <p>Taller de piezas impresas en 3D. Catálogo, cotizaciones y pedidos personalizados.</p>
+      </div>
+      <nav aria-label="Enlaces del pie">
+        <a href="index.html">Inicio</a>
+        <a href="catalogo.html">Catálogo</a>
+        <a href="index.html#materiales">Materiales</a>
+        <a href="index.html#personalizada">Solicitar impresión</a>
+        <a href="acceso.html">Iniciar sesión</a>
+      </nav>
+    </div>
+    <div class="foot-bottom">
+      © 2024 PrintLab 3D · Todos los derechos reservados
+    </div>
+  </footer>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <button class="cart" id="cartBtn" type="button" aria-expanded="false" aria-controls="cartPanel">
+    Carrito <span id="cartCount">0</span>
+  </button>
+  <div class="cart-panel" id="cartPanel" aria-label="Tu carrito" hidden>
+    <header>
+      <strong>Tu carrito</strong>
+      <button type="button" id="closeCart" class="ghost">Cerrar</button>
+    </header>
+    <ul id="cartList"></ul>
+    <p class="total">Total <span id="cartTotal">$0</span></p>
+    <p id="cartNotice" class="form-note" role="status"></p>
+    <button class="solid full" type="button" id="checkout" aria-haspopup="dialog" disabled>Ir al pago</button>
+  </div>
+
+  <dialog class="payment" id="payment" aria-labelledby="paymentTitle" aria-describedby="paymentDescription">
+    <h2 id="paymentTitle">Finalizar compra</h2>
+    <p id="paymentDescription">Modo demostración. No se realizará ningún cargo.</p>
+    <ul class="payment-summary" id="paymentItems" aria-label="Resumen de la compra"></ul>
+    <p class="total">Total a pagar <span id="paymentTotal"></span></p>
+
+    <form id="paymentForm">
+      <fieldset id="paymentMethods">
+        <legend>Método de pago</legend>
+        <label class="payment-option">
+          <input type="radio" name="method" value="tarjeta" required>
+          <strong>Tarjeta</strong>
+        </label>
+        <label class="payment-option">
+          <input type="radio" name="method" value="transferencia" required>
+          <strong>Transferencia</strong>
+        </label>
+        <div class="payment-details" data-payment-details="tarjeta" hidden>
+          <button class="ghost" type="button">Rellenar tarjeta</button>
+          <div class="payment-fields">
+            <label>Titular
+              <input type="text" data-payment-field="titular" readonly>
+            </label>
+            <label>Vencimiento
+              <input type="text" data-payment-field="vencimiento" readonly>
+            </label>
+            <label class="payment-wide">Número de tarjeta
+              <input type="text" data-payment-field="numero" readonly>
+            </label>
+          </div>
+        </div>
+        <div class="payment-details" data-payment-details="transferencia" hidden>
+          <button class="ghost" type="button">Rellenar transferencia</button>
+          <div class="payment-fields">
+            <label>Banco
+              <input type="text" data-payment-field="banco" readonly>
+            </label>
+            <label>Beneficiario
+              <input type="text" data-payment-field="beneficiario" readonly>
+            </label>
+            <label class="payment-wide">Número de cuenta
+              <input type="text" data-payment-field="cuenta" readonly>
+            </label>
+          </div>
+        </div>
+      </fieldset>
+      <p class="form-note payment-notice" id="paymentNotice" role="status"></p>
+      <div class="payment-actions">
+        <button class="ghost" type="button" id="backToCart">Volver al carrito</button>
+        <button class="solid" type="submit" id="confirmPayment" disabled>Confirmar pago</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="invoice" id="invoice" aria-labelledby="invoiceTitle">
+    <p class="eyebrow dark">PrintLab 3D</p>
+    <h2 id="invoiceTitle"></h2>
+    <p id="invoiceDetails"></p>
+    <p class="form-note" id="invoicePayment"></p>
+    <table>
+      <caption class="sr">Detalle de la compra</caption>
+      <thead>
+        <tr><th scope="col">Producto</th><th scope="col">Cant.</th><th scope="col">Precio unitario</th><th scope="col">Subtotal</th></tr>
+      </thead>
+      <tbody id="invoiceItems"></tbody>
+    </table>
+    <p class="total">Total <span id="invoiceTotal"></span></p>
+    <form method="dialog" class="invoice-actions">
+      <a class="ghost" id="printInvoice" href="factura.html" target="_blank" rel="noopener">Abrir factura para imprimir</a>
+      <button class="solid" type="submit">Cerrar</button>
+    </form>
+  </dialog>
+
+  <script src="menu.js"></script>
+  <script src="store.js"></script>
+  <script src="factura.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
