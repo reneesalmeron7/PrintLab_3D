@@ -248,7 +248,8 @@
             <input type="file" name="referencia" accept=".stl,.obj,.3mf,.png,.jpg,.jpeg,.webp">
             <span id="fileName">Ningún archivo elegido</span>
           </label>
-          <button class="solid full" type="submit">Enviar solicitud</button>
+          <p class="form-note" id="requestNotice" role="status" style="margin: 0.75rem 0;"></p>
+          <button class="solid full" type="submit" id="requestSubmit">Enviar solicitud</button>
         </div>
         <div class="thanks" id="thanks" hidden>
           <p class="eyebrow dark">Solicitud lista</p>
@@ -259,23 +260,36 @@
       </form>
     </section>
 
-    <section class="mine" id="mis-solicitudes" hidden>
-      <div class="section-head">
-        <div>
-          <p class="eyebrow dark">Tu cuenta</p>
-          <h2>Mis solicitudes</h2>
+    <section class="my-requests-wrap" id="myRequestsSection" hidden>
+      <div class="sheet">
+        <div class="requests-head">
+          <div>
+            <p class="eyebrow dark">Seguimiento</p>
+            <h2>Mis solicitudes</h2>
+          </div>
+          <button class="ghost" type="button" id="refreshMyRequests">Actualizar</button>
         </div>
+        <div id="myRequestsList" class="request-grid"></div>
       </div>
-      <div class="stack" id="myRequests"></div>
     </section>
   </main>
 
-  <footer class="foot">
-    <div>
-      <strong>PrintLab 3D</strong>
-      <p>Tienda y gestor de impresiones. Propuesta visual de la página de inicio.</p>
+  <footer class="foot-wrap">
+    <div class="foot">
+      <div class="foot-copy">
+        <strong>PrintLab 3D</strong>
+        <p>Taller de piezas impresas en 3D. Catálogo, cotizaciones y pedidos personalizados.</p>
+      </div>
+      <nav aria-label="Enlaces del pie">
+        <a href="#catalogo">Catálogo</a>
+        <a href="#materiales">Materiales</a>
+        <a href="#personalizada">Solicitar impresión</a>
+        <a href="acceso.html">Iniciar sesión</a>
+      </nav>
     </div>
-    <a class="solid" href="#inicio">Volver arriba</a>
+    <div class="foot-bottom">
+      © 2024 PrintLab 3D · Todos los derechos reservados
+    </div>
   </footer>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -364,6 +378,27 @@
       <a class="ghost" id="printInvoice" href="factura.html" target="_blank" rel="noopener">Abrir factura para imprimir</a>
       <button class="solid" type="submit">Cerrar</button>
     </form>
+  </dialog>
+
+  <dialog class="invoice" id="authRequestDialog" aria-labelledby="authDialogTitle">
+    <p class="eyebrow dark">PrintLab 3D</p>
+    <h2 id="authDialogTitle">Inicia sesión o regístrate</h2>
+    <p>Para enviar una solicitud de impresión personalizada necesitas una cuenta. ¿Deseas iniciar sesión o crear una cuenta nueva?</p>
+    <div class="invoice-actions" style="margin-top: 1.5rem; justify-content: flex-end; gap: 8px;">
+      <button class="ghost" type="button" id="closeAuthDialog">Cancelar</button>
+      <a class="ghost" href="acceso.html" style="text-decoration:none;">Iniciar sesión</a>
+      <a class="solid" href="acceso.html#registro" style="text-decoration:none;">Crear cuenta</a>
+    </div>
+  </dialog>
+
+  <dialog class="invoice" id="confirmActionDialog" aria-labelledby="confirmActionTitle">
+    <p class="eyebrow dark">Confirmar acción</p>
+    <h2 id="confirmActionTitle">¿Confirmar?</h2>
+    <p id="confirmActionText"></p>
+    <div class="invoice-actions" style="margin-top: 1.5rem; justify-content: flex-end; gap: 8px;">
+      <button class="ghost" type="button" id="cancelConfirmAction">Volver</button>
+      <button class="solid" type="button" id="okConfirmAction">Confirmar</button>
+    </div>
   </dialog>
 
   <script src="menu.js"></script>

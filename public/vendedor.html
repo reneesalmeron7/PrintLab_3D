@@ -85,8 +85,22 @@
     </section>
 
     <section class="sheet">
-      <h2>Solicitudes</h2>
-      <div id="requestList" class="stack"></div>
+      <div class="requests-head">
+        <div>
+          <h2>Solicitudes</h2>
+          <p class="form-note" id="requestsSummary" role="status"></p>
+        </div>
+        <div class="filters" id="requestFilters" role="group" aria-label="Filtrar solicitudes por estado">
+          <button class="chip on" data-status="todos" type="button" aria-pressed="true">Todas</button>
+          <button class="chip" data-status="pendiente" type="button" aria-pressed="false">Pendiente</button>
+          <button class="chip" data-status="cotizada" type="button" aria-pressed="false">Cotizada</button>
+          <button class="chip" data-status="en_cola" type="button" aria-pressed="false">En cola de pedidos</button>
+          <button class="chip" data-status="imprimiendo" type="button" aria-pressed="false">Imprimiendo</button>
+          <button class="chip" data-status="lista" type="button" aria-pressed="false">Lista</button>
+          <button class="chip" data-status="cancelada" type="button" aria-pressed="false">Cancelada</button>
+        </div>
+      </div>
+      <div id="requestList" class="request-grid"></div>
     </section>
   </main>
 

@@ -54,7 +54,21 @@
             <input name="usuario" required autocomplete="username" placeholder="tu.usuario">
           </label>
           <label>Contraseña
-            <input name="clave" type="password" required autocomplete="current-password" placeholder="••••••••">
+            <div class="password-field">
+              <input name="clave" type="password" required autocomplete="current-password" placeholder="••••••••">
+              <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.74 21.74 0 0 1-2.16 3.19"/>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
           </label>
           <button class="solid full" type="submit">Continuar</button>
           <p class="form-note" id="loginNote" role="status"></p>
@@ -70,7 +84,21 @@
             <input name="email" type="email" required autocomplete="email" placeholder="tu@correo.com">
           </label>
           <label>Contraseña
-            <input name="clave" type="password" required autocomplete="new-password" placeholder="••••••••">
+            <div class="password-field">
+              <input name="clave" type="password" required autocomplete="new-password" placeholder="••••••••">
+              <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.74 21.74 0 0 1-2.16 3.19"/>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
           </label>
           <button class="solid full" type="submit">Crear cuenta</button>
           <p class="form-note" id="registerNote" role="status"></p>

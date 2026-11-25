@@ -57,14 +57,30 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 CREATE TABLE IF NOT EXISTS custom_requests (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
+  piece_name VARCHAR(120) NOT NULL DEFAULT '',
+  material ENUM('PLA', 'PETG', 'ABS') NOT NULL DEFAULT 'PLA',
   description TEXT NOT NULL,
   title VARCHAR(120) NULL,
   material VARCHAR(20) NULL,
   reference_file VARCHAR(255),
-  status ENUM('pendiente', 'cotizada', 'imprimiendo', 'lista', 'en_proceso', 'completada', 'rechazada') NOT NULL DEFAULT 'pendiente',
+  stored_file VARCHAR(255) NULL,
+  status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL DEFAULT 'pendiente',
   quote_price DECIMAL(10,2) NULL,
+  seller_note TEXT NULL,
+  notified_at TIMESTAMP NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS custom_request_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  request_id INT NOT NULL,
+  changed_by VARCHAR(50) NOT NULL,
+  status ENUM('pendiente', 'cotizada', 'en_cola', 'imprimiendo', 'lista', 'cancelada', 'rechazada') NOT NULL,
+  quote_price DECIMAL(10,2) NULL,
+  comment TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (request_id) REFERENCES custom_requests(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
 INSERT INTO categories (name, description) VALUES

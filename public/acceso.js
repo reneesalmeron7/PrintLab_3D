@@ -18,6 +18,22 @@ function showAuth(mode) {
 showLogin.addEventListener("click", () => showAuth("login"));
 showRegister.addEventListener("click", () => showAuth("register"));
 
+document.querySelectorAll(".password-toggle").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const field = btn.closest(".password-field");
+    const input = field ? field.querySelector("input") : null;
+    if (!input) return;
+    const showing = input.type === "password";
+    input.type = showing ? "text" : "password";
+    btn.setAttribute("aria-pressed", String(showing));
+    btn.setAttribute("aria-label", showing ? "Ocultar contraseña" : "Mostrar contraseña");
+    const eye = btn.querySelector(".icon-eye");
+    const eyeOff = btn.querySelector(".icon-eye-off");
+    if (eye) eye.hidden = showing;
+    if (eyeOff) eyeOff.hidden = !showing;
+  });
+});
+
 document.querySelector(".switch").addEventListener("keydown", (event) => {
   const { key, target } = event;
   if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(key)) return;
