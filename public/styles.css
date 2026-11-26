@@ -1275,11 +1275,88 @@ body.role-staff #cartBtn,
 body.role-staff #cartPanel,
 body.role-staff #personalizada,
 body.role-staff #myRequestsSection,
+body.role-staff #myInvoicesSection,
 body.role-staff #myRequestsLink,
-body.role-staff .card .add,
 body.role-staff a[href="#personalizada"],
 body.role-staff a[href="index.html#personalizada"] {
   display: none !important;
+}
+.add.edit-mode {
+  background: var(--indigo);
+}
+.add.edit-mode:hover {
+  background: var(--indigo-deep);
+}
+
+/* Pestañas limpias del panel (vendedor y administrador) */
+.panel-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px;
+  background: #e2e8f0;
+  border-radius: 16px;
+  width: fit-content;
+  max-width: 100%;
+}
+.panel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.94rem;
+  cursor: pointer;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+.panel-tab:hover {
+  color: var(--ink);
+}
+.panel-tab.on {
+  background: #ffffff;
+  color: var(--indigo-deep);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+.tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.08);
+  color: var(--ink-soft);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+.panel-tab.on .tab-count {
+  background: #dbeafe;
+  color: var(--indigo-deep);
+}
+.sheet-head-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.sheet-head-row h2 {
+  margin-bottom: 0;
+}
+.panel-search {
+  width: min(260px, 100%);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+.product-scroll {
+  max-height: 680px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 /* Miniaturas en Piezas publicadas (panel vendedor/admin) */

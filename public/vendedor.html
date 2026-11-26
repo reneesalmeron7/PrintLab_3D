@@ -37,16 +37,28 @@
   <main class="panel" id="contenido" tabindex="-1">
     <div class="panel-head">
       <div>
-        <p class="eyebrow dark">Vendedor</p>
-        <h1>Catálogo y solicitudes.</h1>
+        <p class="eyebrow dark">Panel de vendedor</p>
+        <h1>Gestión del taller.</h1>
       </div>
-      <a class="ghost" href="index.html#catalogo">Ver la tienda</a>
+      <a class="ghost" href="catalogo.html">Ver catálogo</a>
     </div>
 
-    <section class="split">
+    <div class="panel-tabs" role="tablist" aria-label="Secciones del panel">
+      <button type="button" class="panel-tab on" role="tab" aria-selected="true" data-tab="catalogo">
+        Catálogo <span class="tab-count" id="countProducts">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="solicitudes">
+        Solicitudes <span class="tab-count" id="countRequests">0</span>
+      </button>
+    </div>
+
+    <section class="split" data-tab-panel="catalogo">
       <div class="sheet">
-        <h2>Piezas publicadas</h2>
-        <div id="productList" class="stack"></div>
+        <div class="sheet-head-row">
+          <h2>Piezas publicadas</h2>
+          <input type="search" id="productSearch" class="panel-search" placeholder="Buscar pieza…" aria-label="Buscar pieza publicada">
+        </div>
+        <div id="productList" class="stack product-scroll"></div>
       </div>
       <form class="sheet" id="productForm">
         <h2 id="formTitle">Agregar pieza</h2>
@@ -111,7 +123,7 @@
       </form>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="solicitudes" hidden>
       <div class="requests-head">
         <div>
           <h2>Solicitudes</h2>

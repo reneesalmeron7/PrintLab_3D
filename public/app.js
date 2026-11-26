@@ -66,9 +66,9 @@ const paymentDetails = paymentMethods ? paymentMethods.querySelectorAll("[data-p
 const paymentNotice = document.querySelector("#paymentNotice");
 const confirmPayment = document.querySelector("#confirmPayment");
 const backToCart = document.querySelector("#backToCart");
-const demoPaymentProfiles = {
-  tarjeta: { titular: "Cliente Demo", vencimiento: "12/30", numero: "•••• •••• •••• 4242" },
-  transferencia: { banco: "Banco Demo", beneficiario: "PrintLab 3D", cuenta: "•••• •••• 5678" }
+const paymentMethodLabels = {
+  transferencia: "Transferencia bancaria",
+  efectivo: "Efectivo contra entrega"
 };
 let paying = false;
 let catalog = [];
@@ -148,13 +148,24 @@ function isStaffSession() {
   return Boolean(current && (current.role === "vendedor" || current.role === "admin"));
 }
 
+function syncCardActionButtons() {
+  const staff = isStaffSession();
+  grid.querySelectorAll(".card .add").forEach((btn) => {
+    btn.textContent = staff ? "Editar" : "Agregar";
+    btn.classList.toggle("edit-mode", staff);
+  });
+}
+
 function applyRoleVisibility() {
   const staff = isStaffSession();
   document.body.classList.toggle("role-staff", staff);
+  syncCardActionButtons();
   if (staff) {
     if (cartPanel) cartPanel.hidden = true;
     const reqSec = document.querySelector("#myRequestsSection");
     if (reqSec) reqSec.hidden = true;
+    const invSec = document.querySelector("#myInvoicesSection");
+    if (invSec) invSec.hidden = true;
   }
 }
 
@@ -205,6 +216,12 @@ function updateCard(card, product) {
   card.querySelector("h3").textContent = product.name;
   card.querySelector(".card-body > p:not(.meta)").textContent = product.description;
   card.querySelector("strong").textContent = money.format(product.price);
+  const actionBtn = card.querySelector(".add");
+  if (actionBtn) {
+    const staff = isStaffSession();
+    actionBtn.textContent = staff ? "Editar" : "Agregar";
+    actionBtn.classList.toggle("edit-mode", staff);
+  }
 }
 
 function cardFrom(product) {
@@ -347,10 +364,16 @@ chips.forEach((chip) => {
 });
 
 grid.addEventListener("click", (event) => {
-  if (isStaffSession()) return;
   const button = event.target.closest(".add");
-  if (!button || cartPanel.getAttribute("aria-busy") === "true") return;
+  if (!button) return;
   const card = button.closest(".card");
+  if (isStaffSession()) {
+    const current = PrintLab.session();
+    const targetPanel = PrintLab.home(current.role);
+    location.href = `${targetPanel}?edit=${encodeURIComponent(card.dataset.id)}`;
+    return;
+  }
+  if (cartPanel.getAttribute("aria-busy") === "true") return;
   const product = catalog.find((item) => item.id === card.dataset.id);
   if (!product || product.stock < 1) {
     showToast("Esa pieza está agotada.");
@@ -462,11 +485,13 @@ function showInvoice(invoice, method) {
   }
   const invoicePayment = document.querySelector("#invoicePayment");
   if (invoicePayment) {
-    invoicePayment.textContent = method ? ("Pago simulado con " + method + ".") : "";
+    const methodLabel = paymentMethodLabels[method] || method || "";
+    invoicePayment.textContent = methodLabel ? ("Método de pago: " + methodLabel + ".") : "";
   }
   const printLink = document.querySelector("#printInvoice");
   if (printLink && printLink.tagName === "A") {
-    printLink.href = "factura.html?id=" + encodeURIComponent(invoice.id);
+    const query = "id=" + encodeURIComponent(invoice.id) + (method ? "&metodo=" + encodeURIComponent(method) : "");
+    printLink.href = "factura.html?" + query;
   }
   invoiceDialog.showModal();
 }
@@ -505,33 +530,34 @@ function selectedPaymentMethod() {
 function updatePaymentMethod() {
   if (!confirmPayment) return;
   const method = selectedPaymentMethod();
-  let filled = false;
+  let ready = false;
   for (const details of paymentDetails) {
     details.hidden = details.dataset.paymentDetails !== method;
     if (!details.hidden) {
-      filled = [...details.querySelectorAll("[data-payment-field]")].every((field) => field.value);
+      const fields = [...details.querySelectorAll("[data-payment-field]")];
+      ready = fields.length === 0 || fields.every((field) => field.value.trim().length > 0);
     }
   }
-  confirmPayment.disabled = paying || cart.length === 0 || !filled;
+  confirmPayment.disabled = paying || cart.length === 0 || !ready;
 }
 
 if (paymentMethods) {
   paymentMethods.addEventListener("change", updatePaymentMethod);
+  paymentMethods.addEventListener("input", updatePaymentMethod);
 }
 
-for (const details of paymentDetails) {
-  const fillBtn = details.querySelector("button");
-  if (fillBtn) {
-    fillBtn.addEventListener("click", () => {
-      const profile = demoPaymentProfiles[details.dataset.paymentDetails];
-      if (!profile) return;
-      for (const field of details.querySelectorAll("[data-payment-field]")) {
-        field.value = profile[field.dataset.paymentField] || "";
-      }
-      if (paymentNotice) paymentNotice.textContent = "Se cargaron los datos guardados de la demostración.";
-      updatePaymentMethod();
-    });
-  }
+const closePaymentDialog = document.querySelector("#closePaymentDialog");
+if (closePaymentDialog && payment) {
+  closePaymentDialog.addEventListener("click", () => {
+    if (!paying && payment.open) payment.close();
+  });
+}
+
+const closeInvoiceDialog = document.querySelector("#closeInvoiceDialog");
+if (closeInvoiceDialog && invoiceDialog) {
+  closeInvoiceDialog.addEventListener("click", () => {
+    if (invoiceDialog.open) invoiceDialog.close();
+  });
 }
 
 function offerLogin(target) {
@@ -605,6 +631,7 @@ applyRoleVisibility();
       setCartOpen(false);
       showInvoice(data.invoice, method);
       loadCatalog().catch(() => showToast("No se pudo actualizar el catálogo."));
+      loadMyInvoices();
     } catch {
       paymentNotice.textContent = "No se pudo confirmar la compra. Revisa tu conexión.";
     } finally {
@@ -671,16 +698,20 @@ async function syncServerSession() {
       if (data && data.user) {
         PrintLab.saveSession(data.user);
         PrintLab.mountSession();
-applyRoleVisibility();
-        loadMyRequests();
+        applyRoleVisibility();
+        if (!isStaffSession()) {
+          loadMyRequests();
+          loadMyInvoices();
+        }
         return;
       }
     }
     if (response.status === 401) {
       PrintLab.clearSession();
       PrintLab.mountSession();
-applyRoleVisibility();
+      applyRoleVisibility();
       if (myRequestsSection) myRequestsSection.hidden = true;
+      if (myInvoicesSection) myInvoicesSection.hidden = true;
     }
   } catch {
     // Si no hay conexión, mantener estado actual
@@ -692,6 +723,96 @@ const requestSubmit = document.querySelector("#requestSubmit");
 const myRequestsSection = document.querySelector("#myRequestsSection");
 const myRequestsList = document.querySelector("#myRequestsList");
 const refreshMyRequests = document.querySelector("#refreshMyRequests");
+const myInvoicesSection = document.querySelector("#myInvoicesSection");
+const myInvoicesList = document.querySelector("#myInvoicesList");
+const refreshMyInvoices = document.querySelector("#refreshMyInvoices");
+
+async function loadMyInvoices() {
+  if (!myInvoicesSection || !myInvoicesList) return;
+  const current = PrintLab.session();
+  if (!current || isStaffSession()) {
+    myInvoicesSection.hidden = true;
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/invoices", {
+      credentials: "include",
+      cache: "no-store"
+    });
+    if (response.status === 401) {
+      myInvoicesSection.hidden = true;
+      return;
+    }
+    if (!response.ok) throw new Error();
+    const data = await response.json();
+    const items = data.invoices || [];
+
+    myInvoicesSection.hidden = false;
+    myInvoicesList.replaceChildren();
+
+    if (items.length === 0) {
+      const emptyNote = document.createElement("p");
+      emptyNote.className = "form-note";
+      emptyNote.textContent = "Todavía no has realizado compras.";
+      myInvoicesList.append(emptyNote);
+      return;
+    }
+
+    items.forEach((invoice) => {
+      const card = document.createElement("article");
+      card.className = "request-card";
+
+      const head = document.createElement("div");
+      head.className = "request-card-head";
+      const title = document.createElement("strong");
+      title.textContent = "Factura #" + invoice.id;
+      const totalPill = document.createElement("span");
+      totalPill.className = "price-pill";
+      totalPill.textContent = money.format(invoice.total);
+      head.append(title, totalPill);
+
+      const meta = document.createElement("div");
+      meta.className = "request-meta";
+      const when = document.createElement("span");
+      when.textContent = "Fecha: " + new Date(invoice.created).toLocaleString("es-SV");
+      meta.append(when);
+
+      const lines = document.createElement("div");
+      lines.className = "invoice-mini-lines";
+      (invoice.items || []).forEach((item) => {
+        const p = document.createElement("p");
+        p.className = "request-desc";
+        p.textContent = `${item.qty} × ${item.name} · ${money.format(item.price * item.qty)}`;
+        lines.append(p);
+      });
+
+      const actions = document.createElement("div");
+      actions.className = "client-actions";
+      const link = document.createElement("a");
+      link.className = "ghost file-download";
+      link.href = "factura.html?id=" + encodeURIComponent(invoice.id);
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "Ver / Imprimir factura";
+      actions.append(link);
+
+      card.append(head, meta, lines, actions);
+      myInvoicesList.append(card);
+    });
+  } catch {
+    myInvoicesSection.hidden = false;
+    myInvoicesList.replaceChildren();
+    const err = document.createElement("p");
+    err.className = "form-note";
+    err.textContent = "No se pudieron cargar tus facturas.";
+    myInvoicesList.append(err);
+  }
+}
+
+if (refreshMyInvoices) {
+  refreshMyInvoices.addEventListener("click", () => loadMyInvoices());
+}
 
 const requestStatusLabels = {
   pendiente: "Pendiente",

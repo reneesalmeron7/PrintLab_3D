@@ -39,15 +39,33 @@
     <div class="panel-head">
       <div>
         <p class="eyebrow dark">Administración</p>
-        <h1>Tienda, catálogo y cuentas.</h1>
+        <h1>Panel de control.</h1>
       </div>
-      <a class="ghost" href="index.html">Abrir la tienda</a>
+      <a class="ghost" href="catalogo.html">Ver catálogo</a>
     </div>
 
-    <section class="split">
+    <div class="panel-tabs" role="tablist" aria-label="Secciones del panel">
+      <button type="button" class="panel-tab on" role="tab" aria-selected="true" data-tab="catalogo">
+        Catálogo <span class="tab-count" id="countProducts">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="solicitudes">
+        Solicitudes <span class="tab-count" id="countRequests">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="facturas">
+        Facturas <span class="tab-count" id="countInvoices">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="cuentas">
+        Cuentas <span class="tab-count" id="countUsers">0</span>
+      </button>
+    </div>
+
+    <section class="split" data-tab-panel="catalogo">
       <div class="sheet">
-        <h2>Piezas publicadas</h2>
-        <div id="productList" class="stack"></div>
+        <div class="sheet-head-row">
+          <h2>Piezas publicadas</h2>
+          <input type="search" id="productSearch" class="panel-search" placeholder="Buscar pieza…" aria-label="Buscar pieza publicada">
+        </div>
+        <div id="productList" class="stack product-scroll"></div>
       </div>
       <form class="sheet" id="productForm">
         <h2 id="formTitle">Agregar pieza</h2>
@@ -112,7 +130,7 @@
       </form>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="solicitudes" hidden>
       <div class="requests-head">
         <div>
           <h2>Solicitudes</h2>
@@ -132,12 +150,12 @@
       <div id="requestList" class="request-grid"></div>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="facturas" hidden>
       <h2>Facturas</h2>
       <div id="invoiceList" class="stack"></div>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="cuentas" hidden>
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
         <h2 id="accountsTitle">Cuentas</h2>
         <button class="solid" type="button" id="openNewUserBtn">+ Nuevo usuario</button>

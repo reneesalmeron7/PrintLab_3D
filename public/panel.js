@@ -25,7 +25,44 @@ if (session) {
   PrintLab.mountSession();
 
   const productList = document.querySelector("#productList");
+  const productSearch = document.querySelector("#productSearch");
   const requestList = document.querySelector("#requestList");
+  const panelTabs = [...document.querySelectorAll(".panel-tab")];
+  const panelSections = [...document.querySelectorAll("[data-tab-panel]")];
+  const countProducts = document.querySelector("#countProducts");
+  const countRequests = document.querySelector("#countRequests");
+  const countInvoices = document.querySelector("#countInvoices");
+  const countUsers = document.querySelector("#countUsers");
+  let allProducts = [];
+  let productSearchQuery = "";
+  let pendingEditId = new URLSearchParams(location.search).get("edit");
+
+  function setActiveTab(tabName) {
+    const valid = panelTabs.some((t) => t.dataset.tab === tabName) ? tabName : "catalogo";
+    panelTabs.forEach((btn) => {
+      const active = btn.dataset.tab === valid;
+      btn.classList.toggle("on", active);
+      btn.setAttribute("aria-selected", String(active));
+    });
+    panelSections.forEach((sec) => {
+      sec.hidden = sec.dataset.tabPanel !== valid;
+    });
+    if (location.hash !== "#" + valid) {
+      history.replaceState(null, "", location.pathname + location.search + "#" + valid);
+    }
+  }
+
+  panelTabs.forEach((btn) => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  });
+
+  if (pendingEditId) {
+    setActiveTab("catalogo");
+  } else if (location.hash) {
+    setActiveTab(location.hash.slice(1));
+  } else {
+    setActiveTab("catalogo");
+  }
   const productForm = document.querySelector("#productForm");
   const productNote = document.querySelector("#productNote");
   const formTitle = document.querySelector("#formTitle");
@@ -215,15 +252,52 @@ if (session) {
     return data.products || [];
   }
 
-  async function paintProducts() {
-    const token = ++productToken;
-    const items = await loadProducts();
-    if (token !== productToken) return;
+  function openProductInForm(product) {
+    setActiveTab("catalogo");
+    productForm.elements.id.value = String(product.id);
+    productForm.elements.nombre.value = product.name;
+    productForm.elements.descripcion.value = product.description;
+    productForm.elements.precio.value = product.price;
+    productForm.elements.material.value = product.material;
+    if (productForm.elements.categoria) {
+      const catVal = product.category || "";
+      if (catVal && ![...productForm.elements.categoria.options].some((o) => o.value === catVal)) {
+        const opt = document.createElement("option");
+        opt.value = catVal;
+        opt.textContent = catVal;
+        productForm.elements.categoria.append(opt);
+      }
+      productForm.elements.categoria.value = catVal;
+    }
+    productForm.elements.tiempo.value = product.time;
+    productForm.elements.stock.value = product.stock;
+    pendingPhotoFile = null;
+    formTitle.textContent = "Editar pieza";
+    productSubmit.textContent = "Guardar cambios";
+    cancelEdit.hidden = false;
+    productNote.textContent = "";
+    const currentImg = productPhotoUrl(product);
+    setPhotoDropUI(currentImg, currentImg ? "Foto actual" : "");
+    productForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    productForm.elements.nombre.focus();
+  }
+
+  function renderProductList() {
     productList.replaceChildren();
+    if (countProducts) countProducts.textContent = String(allProducts.length);
+    const q = productSearchQuery.trim().toLowerCase();
+    const items = q
+      ? allProducts.filter((p) =>
+          `${p.name} ${p.category || ""} ${p.material || ""} ${p.description || ""}`.toLowerCase().includes(q)
+        )
+      : allProducts;
+
     if (items.length === 0) {
       const empty = document.createElement("p");
       empty.className = "form-note";
-      empty.textContent = "El catálogo está vacío.";
+      empty.textContent = allProducts.length === 0
+        ? "El catálogo está vacío."
+        : "No se encontraron piezas con esa búsqueda.";
       productList.append(empty);
       return;
     }
@@ -260,33 +334,7 @@ if (session) {
       edit.type = "button";
       edit.className = "text-link";
       edit.textContent = "Editar";
-      edit.addEventListener("click", () => {
-        productForm.elements.id.value = String(product.id);
-        productForm.elements.nombre.value = product.name;
-        productForm.elements.descripcion.value = product.description;
-        productForm.elements.precio.value = product.price;
-        productForm.elements.material.value = product.material;
-        if (productForm.elements.categoria) {
-          const catVal = product.category || "";
-          if (catVal && ![...productForm.elements.categoria.options].some((o) => o.value === catVal)) {
-            const opt = document.createElement("option");
-            opt.value = catVal;
-            opt.textContent = catVal;
-            productForm.elements.categoria.append(opt);
-          }
-          productForm.elements.categoria.value = catVal;
-        }
-        productForm.elements.tiempo.value = product.time;
-        productForm.elements.stock.value = product.stock;
-        pendingPhotoFile = null;
-        formTitle.textContent = "Editar pieza";
-        productSubmit.textContent = "Guardar cambios";
-        cancelEdit.hidden = false;
-        productNote.textContent = "";
-        const currentImg = productPhotoUrl(product);
-        setPhotoDropUI(currentImg, currentImg ? "Foto actual" : "");
-        productForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      edit.addEventListener("click", () => openProductInForm(product));
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "danger";
@@ -305,6 +353,31 @@ if (session) {
       row.append(copy, actions);
       productList.append(row);
     });
+  }
+
+  if (productSearch) {
+    productSearch.addEventListener("input", () => {
+      productSearchQuery = productSearch.value;
+      renderProductList();
+    });
+  }
+
+  async function paintProducts() {
+    const token = ++productToken;
+    const items = await loadProducts();
+    if (token !== productToken) return;
+    allProducts = items;
+    renderProductList();
+
+    if (pendingEditId) {
+      const target = allProducts.find((p) => String(p.id) === String(pendingEditId));
+      pendingEditId = null;
+      history.replaceState(null, "", location.pathname + "#catalogo");
+      if (target) {
+        await loadCategories(target.category || "");
+        openProductInForm(target);
+      }
+    }
   }
 
   if (requestFilters) {
@@ -684,6 +757,7 @@ if (session) {
       if (!response.ok) throw new Error();
       const data = await response.json();
       allRequests = data.requests || [];
+      if (countRequests) countRequests.textContent = String(allRequests.length);
       renderRequests();
     } catch {
       renderRequests("No se pudieron cargar las solicitudes del servidor.");
@@ -693,14 +767,14 @@ if (session) {
   async function paintInvoices() {
     const list = document.querySelector("#invoiceList");
     if (!list) return;
-    const localInvoices = PrintLab.invoices();
-    let items = localInvoices;
+    let items = [];
     let notice = "";
     try {
       const response = await fetch("/api/invoices", { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error();
       const data = await response.json();
-      items = [...data.invoices, ...localInvoices];
+      items = data.invoices || [];
+      if (countInvoices) countInvoices.textContent = String(items.length);
     } catch {
       notice = "No se pudieron cargar las facturas del servidor.";
     }
@@ -758,13 +832,24 @@ if (session) {
     const response = await fetch("/api/auth/users", { credentials: "include" });
     const data = await response.json().catch(() => ({}));
     body.replaceChildren();
-    (data.users || []).forEach((user) => {
+    const userList = data.users || [];
+    if (countUsers) countUsers.textContent = String(userList.length);
+    const activeAdminCount = userList.filter((u) => u.role === "admin" && u.active !== false).length;
+    userList.forEach((user) => {
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.textContent = user.username;
+      const isSelf = user.username === session.username;
+      const isLastActiveAdmin = user.role === "admin" && user.active !== false && activeAdminCount <= 1;
       const access = document.createElement("td");
       const role = document.createElement("select");
       role.setAttribute("aria-label", "Acceso de " + user.username);
+      if (isSelf || isLastActiveAdmin) {
+        role.disabled = true;
+        role.title = isLastActiveAdmin
+          ? "Debe quedar al menos un administrador activo"
+          : "No puedes cambiar el rol de tu propia cuenta";
+      }
       ["comprador", "vendedor", "admin"].forEach((value) => {
         const option = document.createElement("option");
         option.value = value;
@@ -779,35 +864,42 @@ if (session) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: role.value })
         });
-        if (!result.ok) return;
-        if (user.username === session.username && role.value !== "admin") {
-          PrintLab.saveSession({ username: user.username, role: role.value });
-          location.href = PrintLab.home(role.value);
+        if (!result.ok) {
+          const err = await result.json().catch(() => ({}));
+          alert(err.error || "No se pudo cambiar el rol.");
         }
+        paintUsers();
       });
       access.append(role);
       const state = document.createElement("td");
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = user.active === false ? "text-link" : "danger";
-      toggle.textContent = user.active === false ? "Activar" : "Desactivar";
-      toggle.addEventListener("click", async () => {
-        if (user.username === session.username) {
-          productNote.textContent = "No puedes desactivar la cuenta con la que entraste.";
-          return;
-        }
-        await fetch("/api/auth/users/" + user.id, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: user.active === false })
+      if (isSelf || isLastActiveAdmin) {
+        const badge = document.createElement("span");
+        badge.className = "form-note";
+        badge.textContent = isSelf ? "Sesión actual" : "Único admin activo";
+        state.append(badge);
+      } else {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = user.active === false ? "text-link" : "danger";
+        toggle.textContent = user.active === false ? "Activar" : "Desactivar";
+        toggle.addEventListener("click", async () => {
+          const res = await fetch("/api/auth/users/" + user.id, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: user.active === false })
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || "No se pudo cambiar el estado.");
+          }
+          paintUsers();
         });
-        paintUsers();
-      });
-      state.append(toggle);
+        state.append(toggle);
+      }
 
       const actions = document.createElement("td");
-      if (user.username !== session.username) {
+      if (!isSelf && !isLastActiveAdmin) {
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "danger";
@@ -819,7 +911,10 @@ if (session) {
               credentials: "include"
             });
             if (res.ok) paintUsers();
-            else alert("No se pudo eliminar el usuario.");
+            else {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || "No se pudo eliminar el usuario.");
+            }
           }
         });
         actions.append(deleteBtn);

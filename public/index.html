@@ -294,6 +294,19 @@
         <div id="myRequestsList" class="request-grid"></div>
       </div>
     </section>
+
+    <section class="my-requests-wrap" id="myInvoicesSection" hidden>
+      <div class="sheet">
+        <div class="requests-head">
+          <div>
+            <p class="eyebrow dark">Historial</p>
+            <h2>Mis facturas</h2>
+          </div>
+          <button class="ghost" type="button" id="refreshMyInvoices">Actualizar</button>
+        </div>
+        <div id="myInvoicesList" class="request-grid"></div>
+      </div>
+    </section>
   </main>
 
   <footer class="foot-wrap">
@@ -330,8 +343,12 @@
   </div>
 
   <dialog class="payment" id="payment" aria-labelledby="paymentTitle" aria-describedby="paymentDescription">
+    <div class="dialog-top">
+      <p class="eyebrow dark">PrintLab 3D</p>
+      <button class="dialog-close" type="button" id="closePaymentDialog" aria-label="Cerrar">✕</button>
+    </div>
     <h2 id="paymentTitle">Finalizar compra</h2>
-    <p id="paymentDescription">Modo demostración. No se realizará ningún cargo.</p>
+    <p id="paymentDescription">Selecciona cómo deseas pagar tu pedido.</p>
     <ul class="payment-summary" id="paymentItems" aria-label="Resumen de la compra"></ul>
     <p class="total">Total a pagar <span id="paymentTotal"></span></p>
 
@@ -339,52 +356,44 @@
       <fieldset id="paymentMethods">
         <legend>Método de pago</legend>
         <label class="payment-option">
-          <input type="radio" name="method" value="tarjeta" required>
-          <strong>Tarjeta</strong>
+          <input type="radio" name="method" value="transferencia" required>
+          <strong>Transferencia bancaria</strong>
         </label>
         <label class="payment-option">
-          <input type="radio" name="method" value="transferencia" required>
-          <strong>Transferencia</strong>
+          <input type="radio" name="method" value="efectivo" required>
+          <strong>Efectivo contra entrega</strong>
         </label>
-        <div class="payment-details" data-payment-details="tarjeta" hidden>
-          <button class="ghost" type="button">Rellenar tarjeta</button>
+        <div class="payment-details" data-payment-details="transferencia" hidden>
+          <p class="form-note" style="margin:0 0 10px;">Ingresa los datos de tu transferencia para registrar el comprobante.</p>
           <div class="payment-fields">
+            <label>Banco
+              <input type="text" data-payment-field="banco" maxlength="80" placeholder="Ej. Banco Agrícola">
+            </label>
             <label>Titular
-              <input type="text" data-payment-field="titular" readonly>
+              <input type="text" data-payment-field="titular" maxlength="80" placeholder="Nombre de quien transfiere">
             </label>
-            <label>Vencimiento
-              <input type="text" data-payment-field="vencimiento" readonly>
-            </label>
-            <label class="payment-wide">Número de tarjeta
-              <input type="text" data-payment-field="numero" readonly>
+            <label class="payment-wide">Número de cuenta o referencia
+              <input type="text" data-payment-field="cuenta" maxlength="30" placeholder="Ej. 0000-0000-0000">
             </label>
           </div>
         </div>
-        <div class="payment-details" data-payment-details="transferencia" hidden>
-          <button class="ghost" type="button">Rellenar transferencia</button>
-          <div class="payment-fields">
-            <label>Banco
-              <input type="text" data-payment-field="banco" readonly>
-            </label>
-            <label>Beneficiario
-              <input type="text" data-payment-field="beneficiario" readonly>
-            </label>
-            <label class="payment-wide">Número de cuenta
-              <input type="text" data-payment-field="cuenta" readonly>
-            </label>
-          </div>
+        <div class="payment-details" data-payment-details="efectivo" hidden>
+          <p class="form-note" style="margin:0;">Pagarás en efectivo al momento de recibir o retirar tu pedido en PrintLab 3D.</p>
         </div>
       </fieldset>
       <p class="form-note payment-notice" id="paymentNotice" role="status"></p>
       <div class="payment-actions">
         <button class="ghost" type="button" id="backToCart">Volver al carrito</button>
-        <button class="solid" type="submit" id="confirmPayment" disabled>Confirmar pago</button>
+        <button class="solid" type="submit" id="confirmPayment" disabled>Confirmar compra</button>
       </div>
     </form>
   </dialog>
 
   <dialog class="invoice" id="invoice" aria-labelledby="invoiceTitle">
-    <p class="eyebrow dark">PrintLab 3D</p>
+    <div class="dialog-top">
+      <p class="eyebrow dark">PrintLab 3D</p>
+      <button class="dialog-close" type="button" id="closeInvoiceDialog" aria-label="Cerrar">✕</button>
+    </div>
     <h2 id="invoiceTitle"></h2>
     <p id="invoiceDetails"></p>
     <p class="form-note" id="invoicePayment"></p>
@@ -397,8 +406,7 @@
     </table>
     <p class="total">Total <span id="invoiceTotal"></span></p>
     <form method="dialog" class="invoice-actions">
-      <a class="ghost" id="printInvoice" href="factura.html" target="_blank" rel="noopener">Abrir factura para imprimir</a>
-      <button class="solid" type="submit">Cerrar</button>
+      <a class="solid" id="printInvoice" href="factura.html" target="_blank" rel="noopener">Abrir factura para imprimir</a>
     </form>
   </dialog>
 

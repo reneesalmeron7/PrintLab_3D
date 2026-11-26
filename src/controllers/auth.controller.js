@@ -170,40 +170,76 @@ async function listUsers(req, res) {
 
 async function updateUser(req, res) {
   const id = Number(req.params.id);
-  const [rows] = await pool.execute(
-    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
-    [id]
-  );
-  const current = rows[0];
-  if (!current) return res.status(404).json({ error: "Usuario no encontrado." });
-
-  let role = current.role;
-  if (req.body.role !== undefined) {
-    role = String(req.body.role);
-    if (!["comprador", "vendedor", "admin"].includes(role)) {
-      return res.status(400).json({ error: "Rol no permitido." });
-    }
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: "ID inválido." });
   }
 
-  let active = Boolean(current.active);
-  if (req.body.active !== undefined) {
-    if (req.session.user.id === current.id) {
-      return res.status(400).json({ error: "No puedes desactivar la cuenta con la que entraste." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+      [id]
+    );
+    const current = rows[0];
+    if (!current) {
+      await connection.rollback();
+      return res.status(404).json({ error: "Usuario no encontrado." });
     }
-    active = Boolean(req.body.active);
+
+    let role = current.role;
+    if (req.body.role !== undefined) {
+      role = String(req.body.role);
+      if (!["comprador", "vendedor", "admin"].includes(role)) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Rol no permitido." });
+      }
+      if (req.session.user.id === current.id && role !== "admin") {
+        await connection.rollback();
+        return res.status(400).json({ error: "No puedes quitarte el rol de administrador a tu propia cuenta." });
+      }
+    }
+
+    let active = Boolean(current.active);
+    if (req.body.active !== undefined) {
+      if (req.session.user.id === current.id) {
+        await connection.rollback();
+        return res.status(400).json({ error: "No puedes desactivar la cuenta con la que entraste." });
+      }
+      active = Boolean(req.body.active);
+    }
+
+    const wasActiveAdmin = current.role === "admin" && Boolean(current.active);
+    const willBeActiveAdmin = role === "admin" && active;
+    if (wasActiveAdmin && !willBeActiveAdmin) {
+      const [[{ total }]] = await connection.execute(
+        "SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND active = 1 AND id <> ? FOR UPDATE",
+        [id]
+      );
+      if (Number(total) < 1) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Debe quedar al menos un administrador activo." });
+      }
+    }
+
+    await connection.execute(
+      "UPDATE users SET role = ?, active = ? WHERE id = ?",
+      [role, active ? 1 : 0, id]
+    );
+    if (req.session.user.id === current.id) req.session.user.role = role;
+
+    const [updated] = await connection.execute(
+      "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
+      [id]
+    );
+    await connection.commit();
+    res.json({ user: publicUser(updated[0]) });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-
-  await pool.execute(
-    "UPDATE users SET role = ?, active = ? WHERE id = ?",
-    [role, active ? 1 : 0, id]
-  );
-  if (req.session.user.id === current.id) req.session.user.role = role;
-
-  const [updated] = await pool.execute(
-    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
-    [id]
-  );
-  res.json({ user: publicUser(updated[0]) });
 }
 
 async function createUser(req, res) {
@@ -258,6 +294,25 @@ async function deleteUser(req, res) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    const [targetRows] = await connection.execute(
+      "SELECT id, role, active FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+      [id]
+    );
+    const target = targetRows[0];
+    if (!target) {
+      await connection.rollback();
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+    if (target.role === "admin" && Boolean(target.active)) {
+      const [[{ total }]] = await connection.execute(
+        "SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND active = 1 AND id <> ? FOR UPDATE",
+        [id]
+      );
+      if (Number(total) < 1) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Debe quedar al menos un administrador activo." });
+      }
+    }
     await connection.execute("DELETE FROM custom_requests WHERE user_id = ?", [id]);
     const [result] = await connection.execute("DELETE FROM users WHERE id = ?", [id]);
     if (result.affectedRows === 0) {
