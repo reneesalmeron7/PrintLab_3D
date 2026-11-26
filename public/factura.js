@@ -1,11 +1,36 @@
 const InvoiceView = (() => {
   const money = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 
-  function render(container, invoice) {
+  function render(container, invoice, method) {
     const created = new Date(invoice.createdAt ?? invoice.created);
-    container.querySelector("#invoiceTitle").textContent = "Factura #" + invoice.id;
-    container.querySelector("#invoiceDetails").textContent =
-      invoice.buyer + " · " + created.toLocaleString("es-SV");
+    const formattedDate = Number.isNaN(created.getTime())
+      ? String(invoice.createdAt ?? invoice.created ?? "")
+      : created.toLocaleString("es-SV");
+
+    const titleEl = container.querySelector("#invoiceTitle");
+    if (titleEl) titleEl.textContent = "Factura #" + invoice.id;
+
+    const detailsEl = container.querySelector("#invoiceDetails");
+    if (detailsEl) {
+      detailsEl.textContent = invoice.buyer + " · " + formattedDate;
+    }
+
+    const buyerEl = container.querySelector("#invoiceBuyer");
+    if (buyerEl) buyerEl.textContent = "@" + invoice.buyer;
+
+    const dateEl = container.querySelector("#invoiceDate");
+    if (dateEl) dateEl.textContent = formattedDate;
+
+    const methodBox = container.querySelector("#invoiceMethodBox");
+    const methodEl = container.querySelector("#invoiceMethod");
+    if (methodBox && methodEl && method) {
+      methodEl.textContent = method === "transferencia"
+        ? "Transferencia bancaria"
+        : method === "efectivo"
+          ? "Efectivo contra entrega"
+          : method;
+      methodBox.hidden = false;
+    }
 
     const body = container.querySelector("#invoiceItems");
     body.replaceChildren();
@@ -20,14 +45,17 @@ const InvoiceView = (() => {
 
   async function loadReceipt(receipt) {
     const status = document.querySelector("#receiptStatus");
-    const id = Number(new URLSearchParams(location.search).get("id"));
+    const params = new URLSearchParams(location.search);
+    const id = Number(params.get("id"));
+    const method = params.get("metodo") || "";
+
     if (!Number.isSafeInteger(id) || id < 1) {
       status.textContent = "El número de factura no es válido.";
       return;
     }
 
     try {
-      const response = await fetch("/api/invoices", { cache: "no-store" });
+      const response = await fetch("/api/invoices", { credentials: "include", cache: "no-store" });
       if (response.status === 401) {
         const login = document.createElement("a");
         login.href = "acceso.html";
@@ -44,7 +72,7 @@ const InvoiceView = (() => {
         return;
       }
 
-      render(receipt, invoice);
+      render(receipt, invoice, method);
       document.title = "Factura #" + invoice.id + " | PrintLab 3D";
       status.hidden = true;
       receipt.hidden = false;

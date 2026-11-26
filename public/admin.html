@@ -15,9 +15,9 @@
     <a class="brand" href="index.html">
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 32 32" width="32" height="32">
-          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#0D9488"/>
-          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#4F46E5"/>
-          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#F6F3EC"/>
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
         </svg>
       </span>
       <span>PrintLab <em>3D</em></span>
@@ -39,15 +39,33 @@
     <div class="panel-head">
       <div>
         <p class="eyebrow dark">Administración</p>
-        <h1>Tienda, catálogo y cuentas.</h1>
+        <h1>Panel de control.</h1>
       </div>
-      <a class="ghost" href="index.html">Abrir la tienda</a>
+      <a class="ghost" href="catalogo.html">Ver catálogo</a>
     </div>
 
-    <section class="split">
+    <div class="panel-tabs" role="tablist" aria-label="Secciones del panel">
+      <button type="button" class="panel-tab on" role="tab" aria-selected="true" data-tab="catalogo">
+        Catálogo <span class="tab-count" id="countProducts">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="solicitudes">
+        Solicitudes <span class="tab-count" id="countRequests">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="facturas">
+        Facturas <span class="tab-count" id="countInvoices">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="cuentas">
+        Cuentas <span class="tab-count" id="countUsers">0</span>
+      </button>
+    </div>
+
+    <section class="split" data-tab-panel="catalogo">
       <div class="sheet">
-        <h2>Piezas publicadas</h2>
-        <div id="productList" class="stack"></div>
+        <div class="sheet-head-row">
+          <h2>Piezas publicadas</h2>
+          <input type="search" id="productSearch" class="panel-search" placeholder="Buscar pieza…" aria-label="Buscar pieza publicada">
+        </div>
+        <div id="productList" class="stack product-scroll"></div>
       </div>
       <form class="sheet" id="productForm">
         <h2 id="formTitle">Agregar pieza</h2>
@@ -72,20 +90,47 @@
             <option>ABS</option>
           </select>
         </label>
+        <div class="category-group">
+          <div class="category-label-row">
+            <span class="field-caption">Categoría</span>
+            <button type="button" class="text-link" id="toggleNewCategory">+ Nueva categoría</button>
+          </div>
+          <select name="categoria" id="categorySelect" required>
+            <option value="">Elegir categoría</option>
+          </select>
+          <div class="new-category-box" id="newCategoryBox" hidden>
+            <input type="text" id="newCategoryInput" maxlength="80" placeholder="Ej. Accesorios, Gaming…">
+            <button type="button" class="solid" id="addCategoryBtn">Agregar</button>
+          </div>
+          <p class="form-note" id="categoryNote" role="status"></p>
+        </div>
         <label>Tiempo de impresión
           <input name="tiempo" required maxlength="20" placeholder="1.5 h">
         </label>
-        <label class="file">Foto
-          <input type="file" name="foto" accept="image/*">
-          <img id="photoPreview" alt="Vista previa de la pieza" hidden>
-        </label>
+        <div class="file-group">
+          <span class="field-caption">Foto de la pieza <small>(opcional)</small></span>
+          <label class="file-drop" id="photoDrop">
+            <input class="file-input-hidden" type="file" name="foto" accept="image/*">
+            <img id="photoPreview" alt="Vista previa de la pieza" hidden>
+            <span class="file-drop-icon" id="photoDropIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </span>
+            <span class="file-drop-title">Haz clic para subir o arrastra una imagen</span>
+            <span class="file-drop-hint">PNG, JPG o WEBP</span>
+            <span class="file-drop-name" id="photoName">Ninguna foto elegida</span>
+          </label>
+        </div>
         <button class="solid full" type="submit" id="productSubmit">Agregar al catálogo</button>
         <button class="ghost full" type="button" id="cancelEdit" hidden>Cancelar edición</button>
         <p class="form-note" id="productNote" role="status"></p>
       </form>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="solicitudes" hidden>
       <div class="requests-head">
         <div>
           <h2>Solicitudes</h2>
@@ -105,12 +150,12 @@
       <div id="requestList" class="request-grid"></div>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="facturas" hidden>
       <h2>Facturas</h2>
       <div id="invoiceList" class="stack"></div>
     </section>
 
-    <section class="sheet">
+    <section class="sheet" data-tab-panel="cuentas" hidden>
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
         <h2 id="accountsTitle">Cuentas</h2>
         <button class="solid" type="button" id="openNewUserBtn">+ Nuevo usuario</button>
@@ -126,7 +171,7 @@
             <input name="email" type="email" required maxlength="100" placeholder="usuario@printlab.local">
           </label>
           <label>Contraseña
-            <input name="password" type="password" required minlength="4" placeholder="••••••••">
+            <input name="password" id="newUserPassword" type="password" required minlength="12" placeholder="Mín. 12 caracteres, mayúscula y signo">
           </label>
           <label>Rol
             <select name="role">

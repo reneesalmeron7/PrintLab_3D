@@ -10,6 +10,47 @@ const app = express();
 const root = path.join(__dirname, "..");
 const pub  = path.join(root, "public");
 
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
+// Cabeceras de seguridad HTTP (CSP, anti-clickjacking, anti-MIME sniffing)
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'"
+].join("; ");
+
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Content-Security-Policy", CSP);
+  next();
+});
+
+// Protección CSRF adicional: bloquear peticiones mutadoras de orígenes externos
+app.use((req, res, next) => {
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method) && req.headers.origin) {
+    try {
+      const originHost = new URL(req.headers.origin).host;
+      if (originHost !== req.headers.host) {
+        return res.status(403).json({ error: "Origen no permitido." });
+      }
+    } catch {
+      return res.status(403).json({ error: "Origen inválido." });
+    }
+  }
+  next();
+});
+
 const jsonDefault = express.json({ limit: "2mb" });
 const jsonLarge = express.json({ limit: "15mb" });
 app.use((req, res, next) => {

@@ -5,6 +5,7 @@ fetch("/api/auth/me", { credentials: "include" })
   .then((res) => (res.ok ? res.json() : null))
   .then((data) => {
     if (!data || !data.user) {
+      PrintLab.clearSession();
       location.replace("acceso.html");
       return;
     }
@@ -24,7 +25,44 @@ if (session) {
   PrintLab.mountSession();
 
   const productList = document.querySelector("#productList");
+  const productSearch = document.querySelector("#productSearch");
   const requestList = document.querySelector("#requestList");
+  const panelTabs = [...document.querySelectorAll(".panel-tab")];
+  const panelSections = [...document.querySelectorAll("[data-tab-panel]")];
+  const countProducts = document.querySelector("#countProducts");
+  const countRequests = document.querySelector("#countRequests");
+  const countInvoices = document.querySelector("#countInvoices");
+  const countUsers = document.querySelector("#countUsers");
+  let allProducts = [];
+  let productSearchQuery = "";
+  let pendingEditId = new URLSearchParams(location.search).get("edit");
+
+  function setActiveTab(tabName) {
+    const valid = panelTabs.some((t) => t.dataset.tab === tabName) ? tabName : "catalogo";
+    panelTabs.forEach((btn) => {
+      const active = btn.dataset.tab === valid;
+      btn.classList.toggle("on", active);
+      btn.setAttribute("aria-selected", String(active));
+    });
+    panelSections.forEach((sec) => {
+      sec.hidden = sec.dataset.tabPanel !== valid;
+    });
+    if (location.hash !== "#" + valid) {
+      history.replaceState(null, "", location.pathname + location.search + "#" + valid);
+    }
+  }
+
+  panelTabs.forEach((btn) => {
+    btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+  });
+
+  if (pendingEditId) {
+    setActiveTab("catalogo");
+  } else if (location.hash) {
+    setActiveTab(location.hash.slice(1));
+  } else {
+    setActiveTab("catalogo");
+  }
   const productForm = document.querySelector("#productForm");
   const productNote = document.querySelector("#productNote");
   const formTitle = document.querySelector("#formTitle");
@@ -32,6 +70,15 @@ if (session) {
   const cancelEdit = document.querySelector("#cancelEdit");
   const photoInput = productForm.querySelector('input[name="foto"]');
   const photoPreview = document.querySelector("#photoPreview");
+  const photoDrop = document.querySelector("#photoDrop");
+  const photoDropIcon = document.querySelector("#photoDropIcon");
+  const photoName = document.querySelector("#photoName");
+  const categorySelect = document.querySelector("#categorySelect");
+  const toggleNewCategory = document.querySelector("#toggleNewCategory");
+  const newCategoryBox = document.querySelector("#newCategoryBox");
+  const newCategoryInput = document.querySelector("#newCategoryInput");
+  const addCategoryBtn = document.querySelector("#addCategoryBtn");
+  const categoryNote = document.querySelector("#categoryNote");
   const vendorStates = ["pendiente", "cotizada", "imprimiendo", "lista"];
   const adminStates = vendorStates.concat("rechazada");
   const requestFilters = document.querySelector("#requestFilters");
@@ -39,6 +86,118 @@ if (session) {
   let allRequests = [];
   let activeRequestFilter = "todos";
   let requestFeedback = "";
+  let pendingPhotoFile = null;
+
+  const DEFAULT_ARTWORK = new Map([
+    ["Llavero geométrico", "assets/productos/llavero-geometrico.png"],
+    ["Engranaje de repuesto", "assets/productos/engranaje.png"],
+    ["Soporte de celular", "assets/productos/soporte-celular.png"],
+    ["Mini figura articulada", "assets/productos/figura-articulada.png"],
+    ["Carcasa de prototipo", "assets/productos/carcasa.png"],
+    ["Maceta hexagonal", "assets/productos/maceta-hexagonal.png"]
+  ]);
+
+  function productPhotoUrl(product) {
+    return product.image || DEFAULT_ARTWORK.get(product.name) || "";
+  }
+
+  function setPhotoDropUI(src, label) {
+    if (src) {
+      photoPreview.src = src;
+      photoPreview.hidden = false;
+      if (photoDropIcon) photoDropIcon.hidden = true;
+      if (photoDrop) photoDrop.classList.add("has-file");
+      if (photoName) photoName.textContent = label || "Foto cargada";
+    } else {
+      photoPreview.hidden = true;
+      photoPreview.removeAttribute("src");
+      if (photoDropIcon) photoDropIcon.hidden = false;
+      if (photoDrop) photoDrop.classList.remove("has-file");
+      if (photoName) photoName.textContent = "Ninguna foto elegida";
+    }
+  }
+
+  async function loadCategories(selectName) {
+    if (!categorySelect) return;
+    const currentVal = selectName !== undefined ? selectName : categorySelect.value;
+    try {
+      const res = await fetch("/api/categories", { cache: "no-store" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const cats = data.categories || [];
+      categorySelect.replaceChildren();
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Elegir categoría";
+      categorySelect.append(placeholder);
+      cats.forEach((cat) => {
+        const opt = document.createElement("option");
+        opt.value = cat.name;
+        opt.textContent = cat.name;
+        categorySelect.append(opt);
+      });
+      if (currentVal && cats.some((c) => c.name === currentVal)) {
+        categorySelect.value = currentVal;
+      }
+    } catch {
+      // Si falla, mantener opciones existentes
+    }
+  }
+
+  if (toggleNewCategory && newCategoryBox) {
+    toggleNewCategory.addEventListener("click", () => {
+      const opening = newCategoryBox.hidden;
+      newCategoryBox.hidden = !opening;
+      toggleNewCategory.textContent = opening ? "Cerrar" : "+ Nueva categoría";
+      if (categoryNote) categoryNote.textContent = "";
+      if (opening && newCategoryInput) newCategoryInput.focus();
+    });
+  }
+
+  if (addCategoryBtn && newCategoryInput) {
+    async function submitNewCategory() {
+      const name = newCategoryInput.value.trim();
+      if (categoryNote) categoryNote.textContent = "";
+      if (name.length < 2) {
+        if (categoryNote) categoryNote.textContent = "Escribe al menos 2 caracteres.";
+        newCategoryInput.focus();
+        return;
+      }
+      addCategoryBtn.disabled = true;
+      addCategoryBtn.textContent = "Agregando…";
+      try {
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (categoryNote) categoryNote.textContent = data.error || "No se pudo crear la categoría.";
+          return;
+        }
+        newCategoryInput.value = "";
+        newCategoryBox.hidden = true;
+        if (toggleNewCategory) toggleNewCategory.textContent = "+ Nueva categoría";
+        await loadCategories(data.category.name);
+        if (categoryNote) categoryNote.textContent = `Categoría "${data.category.name}" agregada.`;
+      } catch {
+        if (categoryNote) categoryNote.textContent = "Error de conexión al crear categoría.";
+      } finally {
+        addCategoryBtn.disabled = false;
+        addCategoryBtn.textContent = "Agregar";
+      }
+    }
+
+    addCategoryBtn.addEventListener("click", submitNewCategory);
+    newCategoryInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        submitNewCategory();
+      }
+    });
+  }
 
   const statusLabels = {
     pendiente: "Pendiente",
@@ -78,11 +237,11 @@ if (session) {
   function resetForm() {
     productForm.reset();
     productForm.elements.id.value = "";
+    pendingPhotoFile = null;
     formTitle.textContent = "Agregar pieza";
     productSubmit.textContent = "Agregar al catálogo";
     cancelEdit.hidden = true;
-    photoPreview.hidden = true;
-    photoPreview.removeAttribute("src");
+    setPhotoDropUI("", "");
   }
 
   let productToken = 0;
@@ -93,15 +252,52 @@ if (session) {
     return data.products || [];
   }
 
-  async function paintProducts() {
-    const token = ++productToken;
-    const items = await loadProducts();
-    if (token !== productToken) return;
+  function openProductInForm(product) {
+    setActiveTab("catalogo");
+    productForm.elements.id.value = String(product.id);
+    productForm.elements.nombre.value = product.name;
+    productForm.elements.descripcion.value = product.description;
+    productForm.elements.precio.value = product.price;
+    productForm.elements.material.value = product.material;
+    if (productForm.elements.categoria) {
+      const catVal = product.category || "";
+      if (catVal && ![...productForm.elements.categoria.options].some((o) => o.value === catVal)) {
+        const opt = document.createElement("option");
+        opt.value = catVal;
+        opt.textContent = catVal;
+        productForm.elements.categoria.append(opt);
+      }
+      productForm.elements.categoria.value = catVal;
+    }
+    productForm.elements.tiempo.value = product.time;
+    productForm.elements.stock.value = product.stock;
+    pendingPhotoFile = null;
+    formTitle.textContent = "Editar pieza";
+    productSubmit.textContent = "Guardar cambios";
+    cancelEdit.hidden = false;
+    productNote.textContent = "";
+    const currentImg = productPhotoUrl(product);
+    setPhotoDropUI(currentImg, currentImg ? "Foto actual" : "");
+    productForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    productForm.elements.nombre.focus();
+  }
+
+  function renderProductList() {
     productList.replaceChildren();
+    if (countProducts) countProducts.textContent = String(allProducts.length);
+    const q = productSearchQuery.trim().toLowerCase();
+    const items = q
+      ? allProducts.filter((p) =>
+          `${p.name} ${p.category || ""} ${p.material || ""} ${p.description || ""}`.toLowerCase().includes(q)
+        )
+      : allProducts;
+
     if (items.length === 0) {
       const empty = document.createElement("p");
       empty.className = "form-note";
-      empty.textContent = "El catálogo está vacío.";
+      empty.textContent = allProducts.length === 0
+        ? "El catálogo está vacío."
+        : "No se encontraron piezas con esa búsqueda.";
       productList.append(empty);
       return;
     }
@@ -110,19 +306,26 @@ if (session) {
       row.className = "row";
       const copy = document.createElement("div");
       copy.className = "row-copy";
-      if (product.image) {
+      const photoSrc = productPhotoUrl(product);
+      if (photoSrc) {
         const thumb = document.createElement("img");
         thumb.className = "thumb";
-        thumb.alt = "";
-        thumb.src = product.image;
+        thumb.alt = product.name;
+        thumb.src = photoSrc;
         copy.append(thumb);
+      } else {
+        const placeholder = document.createElement("span");
+        placeholder.className = "thumb-placeholder mat-" + String(product.material || "PLA").toLowerCase();
+        placeholder.textContent = product.material || "3D";
+        copy.append(placeholder);
       }
       const text = document.createElement("div");
       const title = document.createElement("strong");
       title.textContent = product.name;
       const meta = document.createElement("p");
       const stockLabel = product.stock > 0 ? "stock " + product.stock : "agotada";
-      meta.textContent = product.material + " · " + product.time + " · $" + product.price + " · " + stockLabel;
+      const catLabel = product.category ? product.category + " · " : "";
+      meta.textContent = catLabel + product.material + " · " + product.time + " · $" + product.price + " · " + stockLabel;
       text.append(title, meta);
       copy.append(text);
       const actions = document.createElement("div");
@@ -131,33 +334,18 @@ if (session) {
       edit.type = "button";
       edit.className = "text-link";
       edit.textContent = "Editar";
-      edit.addEventListener("click", () => {
-        productForm.elements.id.value = String(product.id);
-        productForm.elements.nombre.value = product.name;
-        productForm.elements.descripcion.value = product.description;
-        productForm.elements.precio.value = product.price;
-        productForm.elements.material.value = product.material;
-        productForm.elements.tiempo.value = product.time;
-        productForm.elements.stock.value = product.stock;
-        formTitle.textContent = "Editar pieza";
-        productSubmit.textContent = "Guardar cambios";
-        cancelEdit.hidden = false;
-        productNote.textContent = "";
-        if (product.image) {
-          photoPreview.src = product.image;
-          photoPreview.hidden = false;
-        } else {
-          photoPreview.hidden = true;
-          photoPreview.removeAttribute("src");
-        }
-        productForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      edit.addEventListener("click", () => openProductInForm(product));
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "danger";
       remove.textContent = "Quitar";
       remove.addEventListener("click", async () => {
-        await fetch("/api/products/" + product.id, { method: "DELETE", credentials: "include" });
+        if (!confirm(`¿Quitar "${product.name}" del catálogo?`)) return;
+        const res = await fetch("/api/products/" + product.id, { method: "DELETE", credentials: "include" });
+        if (!res.ok) {
+          productNote.textContent = "No se pudo quitar la pieza.";
+          return;
+        }
         if (String(productForm.elements.id.value) === String(product.id)) resetForm();
         paintProducts();
       });
@@ -165,6 +353,31 @@ if (session) {
       row.append(copy, actions);
       productList.append(row);
     });
+  }
+
+  if (productSearch) {
+    productSearch.addEventListener("input", () => {
+      productSearchQuery = productSearch.value;
+      renderProductList();
+    });
+  }
+
+  async function paintProducts() {
+    const token = ++productToken;
+    const items = await loadProducts();
+    if (token !== productToken) return;
+    allProducts = items;
+    renderProductList();
+
+    if (pendingEditId) {
+      const target = allProducts.find((p) => String(p.id) === String(pendingEditId));
+      pendingEditId = null;
+      history.replaceState(null, "", location.pathname + "#catalogo");
+      if (target) {
+        await loadCategories(target.category || "");
+        openProductInForm(target);
+      }
+    }
   }
 
   if (requestFilters) {
@@ -544,6 +757,7 @@ if (session) {
       if (!response.ok) throw new Error();
       const data = await response.json();
       allRequests = data.requests || [];
+      if (countRequests) countRequests.textContent = String(allRequests.length);
       renderRequests();
     } catch {
       renderRequests("No se pudieron cargar las solicitudes del servidor.");
@@ -553,14 +767,14 @@ if (session) {
   async function paintInvoices() {
     const list = document.querySelector("#invoiceList");
     if (!list) return;
-    const localInvoices = PrintLab.invoices();
-    let items = localInvoices;
+    let items = [];
     let notice = "";
     try {
-      const response = await fetch("/api/invoices", { cache: "no-store" });
+      const response = await fetch("/api/invoices", { credentials: "include", cache: "no-store" });
       if (!response.ok) throw new Error();
       const data = await response.json();
-      items = [...data.invoices, ...localInvoices];
+      items = data.invoices || [];
+      if (countInvoices) countInvoices.textContent = String(items.length);
     } catch {
       notice = "No se pudieron cargar las facturas del servidor.";
     }
@@ -598,6 +812,15 @@ if (session) {
       total.textContent = "Total $" + Number(invoice.total).toFixed(2);
       copy.append(total);
       row.append(copy);
+      if (typeof invoice.id === "number") {
+        const printLink = document.createElement("a");
+        printLink.className = "ghost";
+        printLink.href = "factura.html?id=" + encodeURIComponent(invoice.id);
+        printLink.target = "_blank";
+        printLink.rel = "noopener";
+        printLink.textContent = "Ver / Imprimir";
+        row.append(printLink);
+      }
       list.append(row);
     });
   }
@@ -609,13 +832,24 @@ if (session) {
     const response = await fetch("/api/auth/users", { credentials: "include" });
     const data = await response.json().catch(() => ({}));
     body.replaceChildren();
-    (data.users || []).forEach((user) => {
+    const userList = data.users || [];
+    if (countUsers) countUsers.textContent = String(userList.length);
+    const activeAdminCount = userList.filter((u) => u.role === "admin" && u.active !== false).length;
+    userList.forEach((user) => {
       const tr = document.createElement("tr");
       const name = document.createElement("td");
       name.textContent = user.username;
+      const isSelf = user.username === session.username;
+      const isLastActiveAdmin = user.role === "admin" && user.active !== false && activeAdminCount <= 1;
       const access = document.createElement("td");
       const role = document.createElement("select");
       role.setAttribute("aria-label", "Acceso de " + user.username);
+      if (isSelf || isLastActiveAdmin) {
+        role.disabled = true;
+        role.title = isLastActiveAdmin
+          ? "Debe quedar al menos un administrador activo"
+          : "No puedes cambiar el rol de tu propia cuenta";
+      }
       ["comprador", "vendedor", "admin"].forEach((value) => {
         const option = document.createElement("option");
         option.value = value;
@@ -630,35 +864,42 @@ if (session) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role: role.value })
         });
-        if (!result.ok) return;
-        if (user.username === session.username && role.value !== "admin") {
-          PrintLab.saveSession({ username: user.username, role: role.value });
-          location.href = PrintLab.home(role.value);
+        if (!result.ok) {
+          const err = await result.json().catch(() => ({}));
+          alert(err.error || "No se pudo cambiar el rol.");
         }
+        paintUsers();
       });
       access.append(role);
       const state = document.createElement("td");
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = user.active === false ? "text-link" : "danger";
-      toggle.textContent = user.active === false ? "Activar" : "Desactivar";
-      toggle.addEventListener("click", async () => {
-        if (user.username === session.username) {
-          productNote.textContent = "No puedes desactivar la cuenta con la que entraste.";
-          return;
-        }
-        await fetch("/api/auth/users/" + user.id, {
-          method: "PATCH",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: user.active === false })
+      if (isSelf || isLastActiveAdmin) {
+        const badge = document.createElement("span");
+        badge.className = "form-note";
+        badge.textContent = isSelf ? "Sesión actual" : "Único admin activo";
+        state.append(badge);
+      } else {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = user.active === false ? "text-link" : "danger";
+        toggle.textContent = user.active === false ? "Activar" : "Desactivar";
+        toggle.addEventListener("click", async () => {
+          const res = await fetch("/api/auth/users/" + user.id, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: user.active === false })
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            alert(err.error || "No se pudo cambiar el estado.");
+          }
+          paintUsers();
         });
-        paintUsers();
-      });
-      state.append(toggle);
+        state.append(toggle);
+      }
 
       const actions = document.createElement("td");
-      if (user.username !== session.username) {
+      if (!isSelf && !isLastActiveAdmin) {
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "danger";
@@ -670,7 +911,10 @@ if (session) {
               credentials: "include"
             });
             if (res.ok) paintUsers();
-            else alert("No se pudo eliminar el usuario.");
+            else {
+              const err = await res.json().catch(() => ({}));
+              alert(err.error || "No se pudo eliminar el usuario.");
+            }
           }
         });
         actions.append(deleteBtn);
@@ -700,10 +944,15 @@ if (session) {
       e.preventDefault();
       newUserNote.textContent = "";
       const formData = new FormData(newUserForm);
+      const password = String(formData.get("password") || "");
+      if (password.length < 12 || !/[A-ZÁÉÍÓÚÑÜ]/.test(password) || !/[^A-Za-z0-9ÁÉÍÓÚÑÜáéíóúñü\s]/.test(password)) {
+        newUserNote.textContent = "La contraseña debe tener mínimo 12 caracteres, una mayúscula y un signo.";
+        return;
+      }
       const body = {
         username: String(formData.get("username")).trim(),
         email: String(formData.get("email")).trim(),
-        password: String(formData.get("password")),
+        password,
         role: formData.get("role")
       };
       const res = await fetch("/api/auth/users", {
@@ -724,14 +973,45 @@ if (session) {
     });
   }
 
+  function handlePhotoSelected(file) {
+    if (!file || !file.type.startsWith("image/")) {
+      productNote.textContent = "Elige un archivo de imagen válido (PNG, JPG o WEBP).";
+      return;
+    }
+    productNote.textContent = "";
+    pendingPhotoFile = file;
+    readPhoto(file).then((url) => {
+      setPhotoDropUI(url, "✓ " + file.name);
+    });
+  }
+
   photoInput.addEventListener("change", () => {
     const file = photoInput.files[0];
-    if (!file) return;
-    readPhoto(file).then((url) => {
-      photoPreview.src = url;
-      photoPreview.hidden = false;
-    });
+    if (file) handlePhotoSelected(file);
   });
+
+  if (photoDrop) {
+    ["dragenter", "dragover"].forEach((evt) => {
+      photoDrop.addEventListener(evt, (event) => {
+        event.preventDefault();
+        photoDrop.classList.add("dragging");
+      });
+    });
+    ["dragleave", "dragend", "drop"].forEach((evt) => {
+      photoDrop.addEventListener(evt, () => photoDrop.classList.remove("dragging"));
+    });
+    photoDrop.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const dropped = event.dataTransfer?.files?.[0];
+      if (!dropped) return;
+      try {
+        const dt = new DataTransfer();
+        dt.items.add(dropped);
+        photoInput.files = dt.files;
+      } catch {}
+      handlePhotoSelected(dropped);
+    });
+  }
 
   cancelEdit.addEventListener("click", () => {
     productNote.textContent = "";
@@ -742,18 +1022,18 @@ if (session) {
     event.preventDefault();
     const data = new FormData(productForm);
     const id = String(data.get("id") || "");
-    const file = photoInput.files[0];
+    const file = pendingPhotoFile || photoInput.files[0];
     readPhoto(file).then(async (image) => {
       const changes = {
         name: String(data.get("nombre")).trim(),
         material: data.get("material"),
+        category: String(data.get("categoria") || "").trim() || "Catálogo",
         time: String(data.get("tiempo")).trim(),
         price: Number(data.get("precio")),
         stock: Number(data.get("stock")),
         description: String(data.get("descripcion")).trim()
       };
       if (image) changes.image = image;
-      if (!id) changes.category = "Catálogo";
       const response = await fetch(id ? "/api/products/" + id : "/api/products", {
         method: id ? "PATCH" : "POST",
         credentials: "include",
@@ -775,6 +1055,7 @@ if (session) {
     });
   });
 
+  loadCategories();
   paintProducts();
   paintRequests();
   paintInvoices();

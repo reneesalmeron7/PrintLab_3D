@@ -11,7 +11,7 @@ const {
 const router = express.Router();
 
 router.get("/requests", requireAuth, listRequests);
-router.post("/requests", requireAuth, createRequest);
+router.post("/requests", requireRole("comprador"), createRequest);
 router.post("/requests/:id/respond", requireAuth, respondToRequest);
 router.patch("/requests/:id", requireRole("vendedor", "admin"), updateRequest);
 router.get("/requests/:id/file", requireAuth, downloadRequestFile);

@@ -74,6 +74,33 @@ async function seedUsers() {
   console.log("Cuentas de prueba insertadas: cliente, vendedor y admin.");
 }
 
+function establishSession(req, user) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((regenErr) => {
+      if (regenErr) return reject(regenErr);
+      req.session.user = user;
+      req.session.save((saveErr) => {
+        if (saveErr) return reject(saveErr);
+        resolve();
+      });
+    });
+  });
+}
+
+function validatePasswordPolicy(password) {
+  const value = String(password || "");
+  if (value.length < 12) {
+    return "La contraseña debe tener al menos 12 caracteres.";
+  }
+  if (!/[A-ZÁÉÍÓÚÑÜ]/.test(value)) {
+    return "La contraseña debe incluir al menos una letra mayúscula.";
+  }
+  if (!/[^A-Za-z0-9ÁÉÍÓÚÑÜáéíóúñü\s]/.test(value)) {
+    return "La contraseña debe incluir al menos un signo o símbolo (ej. !@#$%&*).";
+  }
+  return null;
+}
+
 async function register(req, res) {
   const username = String(req.body.username || "").trim();
   const email = String(req.body.email || "").trim();
@@ -84,6 +111,10 @@ async function register(req, res) {
   }
   if (username.length > 50 || email.length > 100) {
     return res.status(400).json({ error: "Usuario o correo demasiado largo." });
+  }
+  const passwordError = validatePasswordPolicy(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const [existing] = await pool.execute(
@@ -101,7 +132,7 @@ async function register(req, res) {
   );
 
   const user = { id: result.insertId, username, email, role: "comprador" };
-  req.session.user = user;
+  await establishSession(req, user);
   res.status(201).json({ user });
 }
 
@@ -131,7 +162,7 @@ async function login(req, res) {
 
   await recordLoginAttempt(req, username, "exitoso");
   const user = publicUser(found);
-  req.session.user = user;
+  await establishSession(req, user);
   res.json({ user });
 }
 
@@ -170,40 +201,76 @@ async function listUsers(req, res) {
 
 async function updateUser(req, res) {
   const id = Number(req.params.id);
-  const [rows] = await pool.execute(
-    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
-    [id]
-  );
-  const current = rows[0];
-  if (!current) return res.status(404).json({ error: "Usuario no encontrado." });
-
-  let role = current.role;
-  if (req.body.role !== undefined) {
-    role = String(req.body.role);
-    if (!["comprador", "vendedor", "admin"].includes(role)) {
-      return res.status(400).json({ error: "Rol no permitido." });
-    }
+  if (!Number.isInteger(id) || id < 1) {
+    return res.status(400).json({ error: "ID inválido." });
   }
 
-  let active = Boolean(current.active);
-  if (req.body.active !== undefined) {
-    if (req.session.user.id === current.id) {
-      return res.status(400).json({ error: "No puedes desactivar la cuenta con la que entraste." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+      [id]
+    );
+    const current = rows[0];
+    if (!current) {
+      await connection.rollback();
+      return res.status(404).json({ error: "Usuario no encontrado." });
     }
-    active = Boolean(req.body.active);
+
+    let role = current.role;
+    if (req.body.role !== undefined) {
+      role = String(req.body.role);
+      if (!["comprador", "vendedor", "admin"].includes(role)) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Rol no permitido." });
+      }
+      if (req.session.user.id === current.id && role !== "admin") {
+        await connection.rollback();
+        return res.status(400).json({ error: "No puedes quitarte el rol de administrador a tu propia cuenta." });
+      }
+    }
+
+    let active = Boolean(current.active);
+    if (req.body.active !== undefined) {
+      if (req.session.user.id === current.id) {
+        await connection.rollback();
+        return res.status(400).json({ error: "No puedes desactivar la cuenta con la que entraste." });
+      }
+      active = Boolean(req.body.active);
+    }
+
+    const wasActiveAdmin = current.role === "admin" && Boolean(current.active);
+    const willBeActiveAdmin = role === "admin" && active;
+    if (wasActiveAdmin && !willBeActiveAdmin) {
+      const [[{ total }]] = await connection.execute(
+        "SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND active = 1 AND id <> ? FOR UPDATE",
+        [id]
+      );
+      if (Number(total) < 1) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Debe quedar al menos un administrador activo." });
+      }
+    }
+
+    await connection.execute(
+      "UPDATE users SET role = ?, active = ? WHERE id = ?",
+      [role, active ? 1 : 0, id]
+    );
+    if (req.session.user.id === current.id) req.session.user.role = role;
+
+    const [updated] = await connection.execute(
+      "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
+      [id]
+    );
+    await connection.commit();
+    res.json({ user: publicUser(updated[0]) });
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
   }
-
-  await pool.execute(
-    "UPDATE users SET role = ?, active = ? WHERE id = ?",
-    [role, active ? 1 : 0, id]
-  );
-  if (req.session.user.id === current.id) req.session.user.role = role;
-
-  const [updated] = await pool.execute(
-    "SELECT id, username, email, role, active FROM users WHERE id = ? LIMIT 1",
-    [id]
-  );
-  res.json({ user: publicUser(updated[0]) });
 }
 
 async function createUser(req, res) {
@@ -220,6 +287,10 @@ async function createUser(req, res) {
   }
   if (username.length > 50 || email.length > 100) {
     return res.status(400).json({ error: "Usuario o correo demasiado largo." });
+  }
+  const passwordError = validatePasswordPolicy(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const [existing] = await pool.execute(
@@ -258,6 +329,25 @@ async function deleteUser(req, res) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    const [targetRows] = await connection.execute(
+      "SELECT id, role, active FROM users WHERE id = ? LIMIT 1 FOR UPDATE",
+      [id]
+    );
+    const target = targetRows[0];
+    if (!target) {
+      await connection.rollback();
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+    if (target.role === "admin" && Boolean(target.active)) {
+      const [[{ total }]] = await connection.execute(
+        "SELECT COUNT(*) AS total FROM users WHERE role = 'admin' AND active = 1 AND id <> ? FOR UPDATE",
+        [id]
+      );
+      if (Number(total) < 1) {
+        await connection.rollback();
+        return res.status(400).json({ error: "Debe quedar al menos un administrador activo." });
+      }
+    }
     await connection.execute("DELETE FROM custom_requests WHERE user_id = ?", [id]);
     const [result] = await connection.execute("DELETE FROM users WHERE id = ?", [id]);
     if (result.affectedRows === 0) {

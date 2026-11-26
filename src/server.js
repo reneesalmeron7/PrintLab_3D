@@ -7,6 +7,10 @@ const { ensureRequestsSchema } = require("./controllers/requests.controller");
 
 const port = Number(process.env.PORT) || 3000;
 
+if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 16) {
+  console.warn("Aviso de seguridad: define un SESSION_SECRET largo y aleatorio en .env.");
+}
+
 async function initDatabase(retries = 6, delayMs = 2000) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {

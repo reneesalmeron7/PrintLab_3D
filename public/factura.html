@@ -4,28 +4,61 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Factura | PrintLab 3D</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="factura.css">
   <script src="factura.js" defer></script>
 </head>
 <body>
   <div class="print-actions">
-    <a href="index.html">Ir a la tienda</a>
+    <a class="back-link" href="index.html">← Volver a la tienda</a>
     <button id="printReceipt" type="button" hidden>Imprimir o guardar como PDF</button>
   </div>
   <p class="print-status" id="receiptStatus" role="status">Cargando factura…</p>
 
   <main class="receipt" id="receipt" aria-labelledby="invoiceTitle" hidden>
-    <header>
-      <p class="brand">PrintLab 3D</p>
-      <h1 id="invoiceTitle"></h1>
-      <p id="invoiceDetails"></p>
+    <header class="receipt-head">
+      <div class="receipt-brand">
+        <span class="mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32" width="38" height="38">
+            <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+            <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+            <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
+          </svg>
+        </span>
+        <div>
+          <p class="brand">PrintLab <em>3D</em></p>
+          <p class="brand-sub">Taller de piezas impresas en 3D</p>
+        </div>
+      </div>
+      <div class="receipt-meta">
+        <span class="receipt-badge">Comprobante de compra</span>
+        <h1 id="invoiceTitle"></h1>
+        <p id="invoiceDetails"></p>
+      </div>
     </header>
+
+    <section class="receipt-info">
+      <div>
+        <span class="info-label">Cliente</span>
+        <strong id="invoiceBuyer">—</strong>
+      </div>
+      <div>
+        <span class="info-label">Fecha de emisión</span>
+        <strong id="invoiceDate">—</strong>
+      </div>
+      <div id="invoiceMethodBox" hidden>
+        <span class="info-label">Método de pago</span>
+        <strong id="invoiceMethod">—</strong>
+      </div>
+    </section>
 
     <table aria-label="Detalle de la compra">
       <thead>
         <tr>
           <th scope="col">Producto</th>
-          <th scope="col">Cantidad</th>
+          <th scope="col">Cant.</th>
           <th scope="col">Precio unitario</th>
           <th scope="col">Subtotal</th>
         </tr>
@@ -33,7 +66,15 @@
       <tbody id="invoiceItems"></tbody>
     </table>
 
-    <p class="total">Total <strong id="invoiceTotal"></strong></p>
+    <div class="total-box">
+      <span>Total pagado</span>
+      <strong id="invoiceTotal"></strong>
+    </div>
+
+    <footer class="receipt-foot">
+      <p>Gracias por tu compra en PrintLab 3D.</p>
+      <p>Conserva este comprobante para cualquier consulta o entrega en taller.</p>
+    </footer>
   </main>
 </body>
 </html>
