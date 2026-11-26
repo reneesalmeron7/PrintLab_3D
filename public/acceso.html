@@ -86,7 +86,7 @@
           </label>
           <label>Contraseña
             <div class="password-field">
-              <input name="clave" type="password" required autocomplete="new-password" placeholder="••••••••">
+              <input name="clave" id="registerPassword" type="password" required minlength="12" autocomplete="new-password" placeholder="Mín. 12 caracteres, 1 mayúscula y 1 signo">
               <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
                 <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
@@ -101,6 +101,11 @@
               </button>
             </div>
           </label>
+          <ul class="password-rules" id="passwordRules" aria-live="polite">
+            <li data-rule="len">Mínimo 12 caracteres</li>
+            <li data-rule="upper">Al menos una mayúscula (A-Z)</li>
+            <li data-rule="symbol">Al menos un signo o símbolo (!@#$…)</li>
+          </ul>
           <button class="solid full" type="submit">Crear cuenta</button>
           <p class="form-note" id="registerNote" role="status"></p>
         </form>

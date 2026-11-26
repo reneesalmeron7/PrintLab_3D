@@ -944,10 +944,15 @@ if (session) {
       e.preventDefault();
       newUserNote.textContent = "";
       const formData = new FormData(newUserForm);
+      const password = String(formData.get("password") || "");
+      if (password.length < 12 || !/[A-ZÁÉÍÓÚÑÜ]/.test(password) || !/[^A-Za-z0-9ÁÉÍÓÚÑÜáéíóúñü\s]/.test(password)) {
+        newUserNote.textContent = "La contraseña debe tener mínimo 12 caracteres, una mayúscula y un signo.";
+        return;
+      }
       const body = {
         username: String(formData.get("username")).trim(),
         email: String(formData.get("email")).trim(),
-        password: String(formData.get("password")),
+        password,
         role: formData.get("role")
       };
       const res = await fetch("/api/auth/users", {

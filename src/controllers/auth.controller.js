@@ -74,6 +74,33 @@ async function seedUsers() {
   console.log("Cuentas de prueba insertadas: cliente, vendedor y admin.");
 }
 
+function establishSession(req, user) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((regenErr) => {
+      if (regenErr) return reject(regenErr);
+      req.session.user = user;
+      req.session.save((saveErr) => {
+        if (saveErr) return reject(saveErr);
+        resolve();
+      });
+    });
+  });
+}
+
+function validatePasswordPolicy(password) {
+  const value = String(password || "");
+  if (value.length < 12) {
+    return "La contraseña debe tener al menos 12 caracteres.";
+  }
+  if (!/[A-ZÁÉÍÓÚÑÜ]/.test(value)) {
+    return "La contraseña debe incluir al menos una letra mayúscula.";
+  }
+  if (!/[^A-Za-z0-9ÁÉÍÓÚÑÜáéíóúñü\s]/.test(value)) {
+    return "La contraseña debe incluir al menos un signo o símbolo (ej. !@#$%&*).";
+  }
+  return null;
+}
+
 async function register(req, res) {
   const username = String(req.body.username || "").trim();
   const email = String(req.body.email || "").trim();
@@ -84,6 +111,10 @@ async function register(req, res) {
   }
   if (username.length > 50 || email.length > 100) {
     return res.status(400).json({ error: "Usuario o correo demasiado largo." });
+  }
+  const passwordError = validatePasswordPolicy(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const [existing] = await pool.execute(
@@ -101,7 +132,7 @@ async function register(req, res) {
   );
 
   const user = { id: result.insertId, username, email, role: "comprador" };
-  req.session.user = user;
+  await establishSession(req, user);
   res.status(201).json({ user });
 }
 
@@ -131,7 +162,7 @@ async function login(req, res) {
 
   await recordLoginAttempt(req, username, "exitoso");
   const user = publicUser(found);
-  req.session.user = user;
+  await establishSession(req, user);
   res.json({ user });
 }
 
@@ -256,6 +287,10 @@ async function createUser(req, res) {
   }
   if (username.length > 50 || email.length > 100) {
     return res.status(400).json({ error: "Usuario o correo demasiado largo." });
+  }
+  const passwordError = validatePasswordPolicy(password);
+  if (passwordError) {
+    return res.status(400).json({ error: passwordError });
   }
 
   const [existing] = await pool.execute(

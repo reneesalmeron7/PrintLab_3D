@@ -88,16 +88,46 @@ document.querySelector("#loginForm").addEventListener("submit", async (event) =>
   }
 });
 
+const registerPassword = document.querySelector("#registerPassword");
+const passwordRules = document.querySelector("#passwordRules");
+
+function evaluatePassword(value) {
+  return {
+    len: value.length >= 12,
+    upper: /[A-ZÁÉÍÓÚÑÜ]/.test(value),
+    symbol: /[^A-Za-z0-9ÁÉÍÓÚÑÜáéíóúñü\s]/.test(value)
+  };
+}
+
+function updatePasswordChecklist(value) {
+  if (!passwordRules) return;
+  const checks = evaluatePassword(value);
+  passwordRules.querySelectorAll("li[data-rule]").forEach((li) => {
+    li.classList.toggle("ok", Boolean(checks[li.dataset.rule]));
+  });
+}
+
+if (registerPassword) {
+  registerPassword.addEventListener("input", () => updatePasswordChecklist(registerPassword.value));
+}
+
 document.querySelector("#registro").addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = new FormData(event.currentTarget);
   const note = document.querySelector("#registerNote");
   note.textContent = "";
+  const password = String(data.get("clave") || "");
+  const checks = evaluatePassword(password);
+  if (!checks.len || !checks.upper || !checks.symbol) {
+    note.textContent = "La contraseña debe tener mínimo 12 caracteres, una mayúscula y un signo.";
+    if (registerPassword) registerPassword.focus();
+    return;
+  }
   try {
     const result = await postAuth("/api/auth/register", {
       username: String(data.get("usuario")).trim(),
       email: String(data.get("email")).trim(),
-      password: String(data.get("clave"))
+      password
     });
     if (!result.ok || !result.data.user) {
       note.textContent = result.data.error || "Ese usuario ya existe.";
