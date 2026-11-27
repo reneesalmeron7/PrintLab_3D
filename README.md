@@ -204,26 +204,7 @@ cd /var/www/PrintLab_3D
 npm install
 ```
 
-*(Si deseas desplegar la rama de integración en pruebas antes del merge a `main`, corre `git checkout develop`).*
-
 ### Paso 5 — Crear archivo `.env`
-
-```bash
-cat <<'EOF' > /var/www/PrintLab_3D/.env
-DB_HOST=127.0.0.1
-DB_PORT=3307
-DB_USER=printlab_user
-DB_PASSWORD=printlab_pass
-DB_NAME=printlab3d
-
-MARIADB_ROOT_PASSWORD=rootpassword
-MARIADB_PASSWORD=printlab_pass
-
-PORT=3000
-SESSION_SECRET=clave_secreta_larga_aleatoria_printlab_2026
-EOF
-chmod 600 /var/www/PrintLab_3D/.env
-```
 
 ### Paso 6 — Levantar MariaDB en Docker y poblar datos
 
