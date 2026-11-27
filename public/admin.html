@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrintLab 3D — Administración</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="admin">
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+  <header class="nav scrolled" id="nav">
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
+        </svg>
+      </span>
+      <span>PrintLab <em>3D</em></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span><span></span>
+      <span class="sr">Menú</span>
+    </button>
+    <nav class="menu" id="menu" aria-label="Navegación principal">
+      <a href="index.html#catalogo">Tienda</a>
+      <a href="vendedor.html">Catálogo</a>
+      <span id="sessionSlot" class="session-slot"></span>
+      <a class="ghost" id="enterLink" href="acceso.html">Entrar</a>
+      <a class="solid" id="registerLink" href="acceso.html#registro">Crear cuenta</a>
+    </nav>
+  </header>
+
+  <main class="panel" id="contenido" tabindex="-1">
+    <div class="panel-head">
+      <div>
+        <p class="eyebrow dark">Administración</p>
+        <h1>Panel de control.</h1>
+      </div>
+      <a class="ghost" href="catalogo.html">Ver catálogo</a>
+    </div>
+
+    <div class="panel-tabs" role="tablist" aria-label="Secciones del panel">
+      <button type="button" class="panel-tab on" role="tab" aria-selected="true" data-tab="catalogo">
+        Catálogo <span class="tab-count" id="countProducts">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="solicitudes">
+        Solicitudes <span class="tab-count" id="countRequests">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="facturas">
+        Facturas <span class="tab-count" id="countInvoices">0</span>
+      </button>
+      <button type="button" class="panel-tab" role="tab" aria-selected="false" data-tab="cuentas">
+        Cuentas <span class="tab-count" id="countUsers">0</span>
+      </button>
+    </div>
+
+    <section class="split" data-tab-panel="catalogo">
+      <div class="sheet">
+        <div class="sheet-head-row">
+          <h2>Piezas publicadas</h2>
+          <input type="search" id="productSearch" class="panel-search" placeholder="Buscar pieza…" aria-label="Buscar pieza publicada">
+        </div>
+        <div id="productList" class="stack product-scroll"></div>
+      </div>
+      <form class="sheet" id="productForm">
+        <h2 id="formTitle">Agregar pieza</h2>
+        <input type="hidden" name="id">
+        <label>Nombre
+          <input name="nombre" required maxlength="80" placeholder="Ej. clip de cable">
+        </label>
+        <label>Descripción
+          <textarea name="descripcion" required rows="3" maxlength="240" placeholder="Medidas y uso"></textarea>
+        </label>
+        <label>Precio
+          <input name="precio" type="number" min="1" step="1" required placeholder="120">
+        </label>
+        <label>Stock
+          <input name="stock" type="number" min="0" step="1" required value="1">
+        </label>
+        <label>Material
+          <select name="material" required>
+            <option value="">Elegir filamento</option>
+            <option>PLA</option>
+            <option>PETG</option>
+            <option>ABS</option>
+          </select>
+        </label>
+        <div class="category-group">
+          <div class="category-label-row">
+            <span class="field-caption">Categoría</span>
+            <button type="button" class="text-link" id="toggleNewCategory">+ Nueva categoría</button>
+          </div>
+          <select name="categoria" id="categorySelect" required>
+            <option value="">Elegir categoría</option>
+          </select>
+          <div class="new-category-box" id="newCategoryBox" hidden>
+            <input type="text" id="newCategoryInput" maxlength="80" placeholder="Ej. Accesorios, Gaming…">
+            <button type="button" class="solid" id="addCategoryBtn">Agregar</button>
+          </div>
+          <p class="form-note" id="categoryNote" role="status"></p>
+        </div>
+        <label>Tiempo de impresión
+          <input name="tiempo" required maxlength="20" placeholder="1.5 h">
+        </label>
+        <div class="file-group">
+          <span class="field-caption">Foto de la pieza <small>(opcional)</small></span>
+          <label class="file-drop" id="photoDrop">
+            <input class="file-input-hidden" type="file" name="foto" accept="image/*">
+            <img id="photoPreview" alt="Vista previa de la pieza" hidden>
+            <span class="file-drop-icon" id="photoDropIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+            </span>
+            <span class="file-drop-title">Haz clic para subir o arrastra una imagen</span>
+            <span class="file-drop-hint">PNG, JPG o WEBP</span>
+            <span class="file-drop-name" id="photoName">Ninguna foto elegida</span>
+          </label>
+        </div>
+        <button class="solid full" type="submit" id="productSubmit">Agregar al catálogo</button>
+        <button class="ghost full" type="button" id="cancelEdit" hidden>Cancelar edición</button>
+        <p class="form-note" id="productNote" role="status"></p>
+      </form>
+    </section>
+
+    <section class="sheet" data-tab-panel="solicitudes" hidden>
+      <div class="requests-head">
+        <div>
+          <h2>Solicitudes</h2>
+          <p class="form-note" id="requestsSummary" role="status"></p>
+        </div>
+        <div class="filters" id="requestFilters" role="group" aria-label="Filtrar solicitudes por estado">
+          <button class="chip on" data-status="todos" type="button" aria-pressed="true">Todas</button>
+          <button class="chip" data-status="pendiente" type="button" aria-pressed="false">Pendiente</button>
+          <button class="chip" data-status="cotizada" type="button" aria-pressed="false">Cotizada</button>
+          <button class="chip" data-status="en_cola" type="button" aria-pressed="false">En cola de pedidos</button>
+          <button class="chip" data-status="imprimiendo" type="button" aria-pressed="false">Imprimiendo</button>
+          <button class="chip" data-status="lista" type="button" aria-pressed="false">Lista</button>
+          <button class="chip" data-status="cancelada" type="button" aria-pressed="false">Cancelada</button>
+          <button class="chip" data-status="rechazada" type="button" aria-pressed="false">Rechazada</button>
+        </div>
+      </div>
+      <div id="requestList" class="request-grid"></div>
+    </section>
+
+    <section class="sheet" data-tab-panel="facturas" hidden>
+      <h2>Facturas</h2>
+      <div id="invoiceList" class="stack"></div>
+    </section>
+
+    <section class="sheet" data-tab-panel="cuentas" hidden>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;">
+        <h2 id="accountsTitle">Cuentas</h2>
+        <button class="solid" type="button" id="openNewUserBtn">+ Nuevo usuario</button>
+      </div>
+
+      <form id="newUserForm" class="sheet" hidden style="margin-bottom:1.5rem;background:#f8f9fa;padding:1.25rem;border-radius:8px;">
+        <h3 style="margin-top:0;">Crear nuevo usuario</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(min(180px, 100%), 1fr));gap:0.75rem;margin:1rem 0;">
+          <label>Usuario
+            <input name="username" required maxlength="50" placeholder="Ej. nuevo_usuario">
+          </label>
+          <label>Correo
+            <input name="email" type="email" required maxlength="100" placeholder="usuario@printlab.local">
+          </label>
+          <label>Contraseña
+            <input name="password" id="newUserPassword" type="password" required minlength="12" placeholder="Mín. 12 caracteres, mayúscula y signo">
+          </label>
+          <label>Rol
+            <select name="role">
+              <option value="comprador">Comprador</option>
+              <option value="vendedor">Vendedor</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </label>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+          <button class="solid" type="submit">Guardar usuario</button>
+          <button class="ghost" type="button" id="cancelNewUserBtn">Cancelar</button>
+        </div>
+        <p class="form-note" id="newUserNote" role="status" style="margin-top:0.5rem;"></p>
+      </form>
+
+      <div class="table-scroll" role="region" aria-labelledby="accountsTitle" tabindex="0">
+        <table class="accounts" id="userTable">
+          <thead>
+            <tr><th scope="col">Usuario</th><th scope="col">Acceso</th><th scope="col">Estado</th><th scope="col">Acciones</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="menu.js"></script>
+  <script src="store.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

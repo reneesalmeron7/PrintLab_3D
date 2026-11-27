@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrintLab 3D — Entrar</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-page">
+  <a class="skip" href="#contenido">Saltar al contenido</a>
+  <header class="nav scrolled">
+    <a class="brand" href="index.html">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="32" height="32">
+          <path d="M6 22 L16 27 L26 22 L16 17 Z" fill="#06B6D4"/>
+          <path d="M6 16 L16 21 L26 16 L16 11 Z" fill="#2563EB"/>
+          <path d="M6 10 L16 15 L26 10 L16 5 Z" fill="#DBEAFE"/>
+        </svg>
+      </span>
+      <span>PrintLab <em>3D</em></span>
+    </a>
+    <button class="menu-btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="menu">
+      <span></span><span></span><span></span>
+      <span class="sr">Menú</span>
+    </button>
+    <nav class="menu" id="menu" aria-label="Navegación principal">
+      <a href="index.html#catalogo">Destacados</a>
+      <a href="catalogo.html">Catálogo</a>
+      <a href="index.html#materiales">Materiales</a>
+      <a href="index.html#personalizada">Personalizada</a>
+      <span id="sessionSlot" class="session-slot"></span>
+      <a class="ghost" id="enterLink" href="acceso.html">Entrar</a>
+      <a class="solid" id="registerLink" href="acceso.html#registro">Crear cuenta</a>
+    </nav>
+  </header>
+
+  <main class="auth" id="contenido" tabindex="-1">
+    <div class="auth-intro">
+      <p class="eyebrow dark">Tu cuenta</p>
+      <h1>Entra o regístrate.</h1>
+    </div>
+
+    <div class="sheet compact auth-card">
+      <div class="switch" role="tablist" aria-label="Entrar o crear cuenta">
+        <button type="button" id="showLogin" class="on" role="tab" aria-selected="true" aria-controls="loginPanel">Entrar</button>
+        <button type="button" id="showRegister" role="tab" aria-selected="false" aria-controls="registerPanel" tabindex="-1">Crear cuenta</button>
+      </div>
+
+      <div role="tabpanel" id="loginPanel" aria-labelledby="showLogin">
+        <form id="loginForm">
+          <label>Usuario
+            <input name="usuario" required autocomplete="username" placeholder="tu.usuario">
+          </label>
+          <label>Contraseña
+            <div class="password-field">
+              <input name="clave" type="password" required autocomplete="current-password" placeholder="••••••••">
+              <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.74 21.74 0 0 1-2.16 3.19"/>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
+          </label>
+          <button class="solid full" type="submit">Continuar</button>
+          <p class="form-note" id="loginNote" role="status"></p>
+        </form>
+      </div>
+
+      <div role="tabpanel" id="registerPanel" aria-labelledby="showRegister" hidden>
+        <form id="registro">
+          <label>Usuario
+            <input name="usuario" required autocomplete="username" placeholder="tu.usuario">
+          </label>
+          <label>Correo
+            <input name="email" type="email" required autocomplete="email" placeholder="tu@correo.com">
+          </label>
+          <label>Contraseña
+            <div class="password-field">
+              <input name="clave" id="registerPassword" type="password" required minlength="12" autocomplete="new-password" placeholder="Mín. 12 caracteres, 1 mayúscula y 1 signo">
+              <button type="button" class="password-toggle" aria-label="Mostrar contraseña" aria-pressed="false">
+                <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden>
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a21.74 21.74 0 0 1-2.16 3.19"/>
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
+          </label>
+          <ul class="password-rules" id="passwordRules" aria-live="polite">
+            <li data-rule="len">Mínimo 12 caracteres</li>
+            <li data-rule="upper">Al menos una mayúscula (A-Z)</li>
+            <li data-rule="symbol">Al menos un signo o símbolo (!@#$…)</li>
+          </ul>
+          <button class="solid full" type="submit">Crear cuenta</button>
+          <p class="form-note" id="registerNote" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <script src="menu.js"></script>
+  <script src="store.js"></script>
+  <script src="acceso.js"></script>
+</body>
+</html>
